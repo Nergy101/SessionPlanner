@@ -1,0 +1,405 @@
+@import "tailwindcss";
+
+/* Dark mode is a class on <html>, not a media query, so the toggle can win. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   The sprintendo house style: dashed hairline borders, monospace for anything
+   structural, near-zero radii, a flat slate palette with one blue accent.
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-brand: #0067b8;
+  --color-brand-600: #0067b8;
+  --color-brand-700: #0058a0;
+
+  --radius-none: 0;
+  --radius-sm: 1px;
+  --radius-DEFAULT: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
+  --radius-2xl: 3px;
+  --radius-3xl: 4px;
+
+  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-800 antialiased;
+    @apply dark:bg-slate-950 dark:text-slate-200;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-mono font-bold tracking-tight text-slate-900
+      dark:text-slate-100;
+  }
+
+  ::selection {
+    @apply bg-brand/20;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Component vocabulary. These are @apply compositions rather than one-off
+   utility soup, so every card, badge and input across the app stays identical.
+   --------------------------------------------------------------------------- */
+@layer components {
+  /* ---- inputs ---- */
+  .ui-input {
+    @apply w-full rounded-md border border-dashed border-slate-300 bg-white px-3
+      py-2 font-mono text-sm text-slate-900 shadow-sm outline-none;
+    @apply focus:border-solid focus:border-brand focus:ring-2
+      focus:ring-brand/20;
+    @apply dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100
+      dark:placeholder:text-slate-500;
+  }
+
+  .ui-textarea {
+    @apply w-full resize-y rounded-md border border-dashed border-slate-300
+      bg-white px-3 py-2 font-mono text-sm leading-relaxed text-slate-900
+      shadow-sm outline-none;
+    @apply focus:border-solid focus:border-brand focus:ring-2
+      focus:ring-brand/20;
+    @apply dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100
+      dark:placeholder:text-slate-500;
+  }
+
+  .ui-select {
+    @apply w-full cursor-pointer appearance-none rounded-md border border-dashed
+      border-slate-300 bg-white bg-no-repeat py-2 pl-3 pr-7 font-mono text-sm
+      text-slate-900 shadow-sm outline-none;
+    @apply focus:border-solid focus:border-brand focus:ring-2
+      focus:ring-brand/20;
+    @apply dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100;
+    background-image:
+      linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%;
+    background-size: 5px 5px, 5px 5px;
+  }
+
+  /* An input that only reveals itself as editable on hover — for dense tables. */
+  .ui-input-inline {
+    @apply w-full rounded-md border border-dashed border-transparent
+      bg-transparent px-2 py-1 font-mono text-sm text-slate-900 outline-none;
+    @apply hover:border-slate-300 hover:bg-slate-50;
+    @apply focus:border-solid focus:border-brand focus:bg-white focus:ring-2
+      focus:ring-brand/20;
+    @apply dark:text-slate-100 dark:hover:border-slate-600
+      dark:hover:bg-slate-800 dark:focus:bg-slate-800;
+  }
+
+  .ui-label {
+    @apply mb-1 block font-mono text-[0.65rem] font-bold uppercase
+      tracking-widest text-slate-600 dark:text-slate-400;
+  }
+
+  .ui-label-hint {
+    @apply font-normal normal-case tracking-normal;
+  }
+
+  /* ---- buttons ---- */
+  .ui-btn {
+    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap
+      rounded-md border border-dashed border-slate-300 bg-white px-3 py-2
+      font-mono text-xs font-semibold text-slate-900 shadow-sm transition;
+    @apply hover:border-brand hover:text-brand active:translate-y-px;
+    @apply disabled:cursor-not-allowed disabled:opacity-45
+      disabled:hover:border-slate-300 disabled:hover:text-slate-900
+      disabled:active:translate-y-0;
+    @apply dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100
+      dark:disabled:hover:border-slate-600 dark:disabled:hover:text-slate-100;
+  }
+
+  .ui-btn-primary {
+    @apply border-solid border-brand bg-brand text-white;
+    @apply hover:border-brand-700 hover:bg-brand-700 hover:text-white;
+    @apply disabled:hover:border-brand disabled:hover:bg-brand
+      disabled:hover:text-white;
+    @apply dark:border-brand dark:bg-brand dark:text-white
+      dark:disabled:hover:border-brand dark:disabled:hover:text-white;
+  }
+
+  .ui-btn-ghost {
+    @apply border-transparent bg-transparent text-slate-600 shadow-none;
+    @apply hover:border-slate-300 hover:text-brand;
+    @apply dark:bg-transparent dark:text-slate-400 dark:hover:border-slate-600;
+  }
+
+  .ui-btn-danger {
+    @apply text-rose-600 hover:border-rose-500 hover:text-rose-600;
+    @apply dark:text-rose-400 dark:hover:border-rose-500
+      dark:hover:text-rose-400;
+  }
+
+  .ui-btn-danger-solid {
+    @apply border-solid border-rose-600 bg-rose-600 text-white;
+    @apply hover:border-rose-700 hover:bg-rose-700 hover:text-white;
+    @apply dark:border-rose-600 dark:bg-rose-600 dark:text-white
+      dark:hover:text-white;
+  }
+
+  .ui-btn-sm {
+    @apply px-2 py-1 text-[0.7rem];
+  }
+
+  .ui-icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-md border
+      border-dashed border-transparent bg-transparent text-slate-600 transition;
+    @apply hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900;
+    @apply dark:text-slate-400 dark:hover:border-slate-600
+      dark:hover:bg-slate-800 dark:hover:text-slate-100;
+  }
+
+  /* ---- surfaces ---- */
+  .ui-panel {
+    @apply rounded-lg border border-dashed border-slate-300 bg-white p-4
+      shadow-sm;
+    @apply dark:border-slate-600 dark:bg-slate-900;
+  }
+
+  .ui-card {
+    @apply flex flex-col gap-2 rounded-lg border border-dashed border-slate-300
+      bg-white p-3.5 shadow-sm transition;
+    @apply hover:-translate-y-0.5 hover:border-brand hover:shadow-md;
+    @apply dark:border-slate-600 dark:bg-slate-900 dark:hover:shadow-black/40;
+    /* A hovered card's transform makes it its own stacking context, which can paint
+       a later card over an earlier card's open dropdown — the pointer then flips
+       hover between the two and the menu flickers. Lifting the card being typed in
+       above its neighbours keeps its menu on top. */
+    @apply focus-within:relative focus-within:z-30;
+  }
+
+  .ui-empty {
+    @apply rounded-lg border border-dashed border-slate-300 bg-slate-50 p-7
+      text-center font-mono text-xs text-slate-600;
+    @apply dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400;
+  }
+
+  /* ---- badges and chips ---- */
+  .ui-badge {
+    @apply inline-flex items-center whitespace-nowrap rounded-md px-1.5 py-0.5
+      font-mono text-[0.6rem] font-bold uppercase tracking-wider;
+  }
+
+  .ui-chip {
+    @apply inline-flex items-center gap-1 rounded-md border border-dashed
+      border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[0.7rem]
+      text-slate-600 no-underline;
+    @apply dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300;
+  }
+
+  a.ui-chip:hover {
+    @apply border-brand text-brand;
+  }
+
+  .ui-chip-person {
+    @apply border-transparent bg-violet-50 text-violet-700 dark:bg-violet-500/15
+      dark:text-violet-300;
+  }
+
+  /* ---- table ---- */
+  .ui-table-wrap {
+    @apply overflow-hidden rounded-lg border border-dashed border-slate-300
+      bg-white shadow-sm;
+    @apply dark:border-slate-600 dark:bg-slate-900;
+  }
+
+  .ui-toolbar {
+    @apply flex flex-wrap items-center gap-2 border-b border-dashed
+      border-slate-300 bg-slate-50 p-2.5;
+    @apply dark:border-slate-600 dark:bg-slate-800/50;
+  }
+
+  .ui-th {
+    @apply border-b border-dashed border-slate-300 bg-slate-50 px-3 py-2
+      text-left font-mono text-[0.6rem] font-bold uppercase tracking-widest
+      text-slate-600;
+    @apply dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-400;
+  }
+
+  .ui-td {
+    @apply border-b border-dashed border-slate-200 px-3 py-1.5 align-middle
+      dark:border-slate-700/70;
+  }
+
+  /* ---- popover ----
+     Used by the speaker multi-select in the subjects table. `popover` renders in the
+     browser's top layer, which is the only way a panel inside a container with
+     overflow-x-auto can escape being clipped — and it opens with no JavaScript. */
+  .ui-popover {
+    /* m-auto is load-bearing: the UA stylesheet centres a popover with
+       `inset: 0; margin: auto`, and Tailwind's preflight resets margin to 0 on
+       every element — which parks the panel in the top-left corner instead. */
+    @apply m-auto w-80 max-w-[92vw] rounded-lg border border-dashed
+      border-slate-300 bg-white p-4 shadow-lg;
+    @apply dark:border-slate-500 dark:bg-slate-900;
+  }
+
+  /* ---- section furniture ---- */
+  .ui-section-head {
+    @apply mb-4 flex items-baseline justify-between gap-4 border-b border-dashed
+      border-slate-300 pb-2 dark:border-slate-700;
+  }
+
+  .ui-eyebrow {
+    @apply font-mono text-[0.65rem] font-bold uppercase tracking-widest
+      text-slate-600 dark:text-slate-400;
+  }
+
+  .ui-hint {
+    @apply font-mono text-[0.7rem] text-slate-600 dark:text-slate-400;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Status badge colours — one per rung, so the ladder reads at a glance.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .ui-badge-idea {
+    @apply bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300;
+  }
+  .ui-badge-assigned {
+    @apply bg-violet-100 text-violet-700 dark:bg-violet-500/15
+      dark:text-violet-300;
+  }
+  .ui-badge-planned {
+    @apply bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300;
+  }
+  .ui-badge-presented {
+    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15
+      dark:text-emerald-300;
+  }
+  .ui-badge-archived {
+    @apply border border-dashed border-slate-300 text-slate-600
+      dark:border-slate-600 dark:text-slate-400;
+  }
+  .ui-badge-danger {
+    @apply bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300;
+  }
+}
+
+/* The default popover placement is centred in the viewport; dim what's behind it so
+   it reads as a focused choice rather than a floating fragment. */
+[popover]::backdrop {
+  background: rgb(15 23 42 / 0.35);
+  backdrop-filter: blur(1px);
+}
+
+html.dark [popover]::backdrop {
+  background: rgb(2 6 23 / 0.55);
+}
+
+/* Straat-taal rewrites the text in the browser; keep the page hidden until it has,
+   so it never flashes English first. The inline head script un-hides it after a
+   timeout in case static/straat.js never loads. */
+html.straat:not(.straat-ready) body {
+  visibility: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+   Stroopwafel tijd! The header easter egg (islands/StroopwafelEgg.tsx).
+   Each confetti piece flies start -> peak -> end, positions set inline per piece.
+   --------------------------------------------------------------------------- */
+.stroop-party {
+  animation: stroop-flood 250ms ease-out both,
+    stroop-fade 400ms ease-in calc(var(--stroop-total) - 400ms) forwards;
+}
+
+.stroop-title {
+  animation: stroop-drop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) 100ms both;
+}
+
+.stroop-hero {
+  animation: stroop-pop 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    stroop-wobble 2.4s ease-in-out 700ms infinite;
+}
+
+.stroop-piece {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--size);
+  height: var(--size);
+  opacity: 0;
+  animation-name: stroop-fly;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+@keyframes stroop-flood {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes stroop-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes stroop-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.8);
+  }
+}
+
+@keyframes stroop-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2) rotate(-90deg);
+  }
+}
+
+@keyframes stroop-wobble {
+  0%,
+  100% {
+    transform: rotate(-6deg) scale(1);
+  }
+  50% {
+    transform: rotate(6deg) scale(1.04);
+  }
+}
+
+@keyframes stroop-fly {
+  0% {
+    opacity: 1;
+    transform: translate(var(--x0), var(--y0)) rotate(0deg);
+    animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  }
+  35% {
+    transform: translate(var(--x1), var(--y1))
+      rotate(calc(var(--spin) * 0.4));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(var(--x2), var(--y2)) rotate(var(--spin));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stroop-hero,
+  .stroop-title {
+    animation: none;
+  }
+  .stroop-piece {
+    display: none;
+  }
+}
