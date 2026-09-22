@@ -3,7 +3,7 @@
   "tasks": {
     "dev": "vite",
     "build": "vite build",
-    "start": "deno task dbup && deno serve -A --port ${PORT:-8000} _fresh/server.js",
+    "start": "deno task dbup && sh -c 'exec deno serve -A --port ${PORT:-8000} _fresh/server.js'",
     "dbup": "deno run -A db/migrate.ts up",
     "dbdown": "deno run -A db/migrate.ts down",
     "dbredo": "deno run -A db/migrate.ts redo",
