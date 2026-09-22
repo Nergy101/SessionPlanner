@@ -1,0 +1,28 @@
+services:
+  app:
+    image: ${IMAGE_NAME:-sessionplanner}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in the environment or a .env file}
+      DB_PATH: /data/session-planner.db
+      PORT: 8000
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - sessionplanner-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - deno
+        - eval
+        - "const r = await fetch('http://127.0.0.1:8000/standings'); Deno.exit(r.ok ? 0 : 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  sessionplanner-data:

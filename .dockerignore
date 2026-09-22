@@ -1,0 +1,9 @@
+.git
+.github
+_fresh
+node_modules
+vendor
+/data
+.env*
+README.md
+tests

@@ -35,6 +35,37 @@ deno task build
 APP_PASSWORD=... deno task start   # migrates, then serves on $PORT (default 8000)
 ```
 
+### Docker
+
+The repository includes a multi-stage production image and a Compose file. The
+SQLite database lives in a named volume, and migrations run automatically when
+the container starts.
+
+```sh
+APP_PASSWORD='use-a-long-random-password' docker compose up -d --build
+```
+
+The app is available at `http://localhost:8000`. Put it behind a TLS-terminating
+reverse proxy before exposing it outside a trusted network. To use the image
+published by GitHub Actions instead of building locally:
+
+```sh
+IMAGE_NAME=ghcr.io/nergy101/sessionplanner IMAGE_TAG=latest \
+  APP_PASSWORD='use-a-long-random-password' docker compose pull
+IMAGE_NAME=ghcr.io/nergy101/sessionplanner IMAGE_TAG=latest \
+  APP_PASSWORD='use-a-long-random-password' docker compose up -d
+```
+
+Pushes to `main` publish `latest` and a commit-SHA tag to GHCR. Version tags
+such as `v1.2.3` publish the version tag as well. Pull requests run the checks
+and build the image without publishing it.
+
+Images are built for `linux/amd64` and `linux/arm64`, each on a native runner
+rather than under QEMU, and joined into one manifest list - so the same tag
+pulls correctly on an x86 laptop and on an arm64 VPS. The workflow requires the
+repository's Actions setting **Workflow permissions** to allow read and write
+permissions; its job also declares `packages: write` for `GITHUB_TOKEN`.
+
 ## The status ladder
 
 ```
