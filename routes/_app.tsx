@@ -18,6 +18,7 @@ export default function App(
       { href: "/subjects", label: "subjects" },
       { href: "/sessions", label: "sessions" },
       { href: "/people", label: "people" },
+      { href: "/data", label: "data" },
       { href: "/standings", label: "standings" },
     ]
     : [{ href: "/standings", label: "standings" }];

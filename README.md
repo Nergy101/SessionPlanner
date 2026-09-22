@@ -211,7 +211,12 @@ every existing session.
 ## Data and backups
 
 Everything is one SQLite file, `data/session-planner.db` (override with
-`DB_PATH`). Backing up is copying it:
+`DB_PATH`). The signed-in **data** page also provides a portable JSON export and
+import. An import replaces all current application data in one transaction, so
+export the current instance first if you may need to undo it.
+
+For a direct filesystem backup, copying the SQLite file is still possible when
+the app is stopped:
 
 ```sh
 cp data/session-planner.db backup-$(date +%F).db
@@ -226,7 +231,7 @@ upgraded in place and a fresh one initialises itself.
 deno task test
 ```
 
-28 tests: the status ladder as a pure function, plus integration tests against a
+49 tests: the status ladder as a pure function, plus integration tests against a
 real migrated SQLite file - case-insensitive person resolution, person merging,
 that deleting a session unschedules its subjects rather than deleting them, that
 archived subjects stay out of the default list, and that foreign keys are

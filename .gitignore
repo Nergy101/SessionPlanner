@@ -13,5 +13,5 @@ vendor/
 
 
 # Local database and secrets
-data/
+/data/
 .env
