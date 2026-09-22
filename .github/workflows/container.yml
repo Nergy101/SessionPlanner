@@ -26,6 +26,11 @@ jobs:
         with:
           deno-version: v2.9.6
 
+      # deno.json sets nodeModulesDir "manual", so node_modules has to be
+      # populated before anything type-checks.
+      - name: Install dependencies
+        run: deno install --entrypoint deno.json
+
       - name: Check formatting, lint, and types
         run: deno task check
 
