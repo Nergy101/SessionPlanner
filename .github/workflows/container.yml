@@ -77,6 +77,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Links the package back to this repository, which is what gives the
+      # workflow's GITHUB_TOKEN write access to it on later runs.
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v6
@@ -84,6 +92,7 @@ jobs:
           context: .
           file: Dockerfile
           platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ steps.platform.outputs.pair }}
           cache-to: type=gha,mode=max,scope=${{ steps.platform.outputs.pair }}
           outputs: ${{ github.event_name != 'pull_request'
