@@ -8,8 +8,9 @@ import StroopwafelEgg from "@/islands/StroopwafelEgg.tsx";
 export default function App(
   { Component, url, state }: PageProps<unknown, State>,
 ) {
-  // /standings is public, so a visitor may have no session at all. Show them the
-  // scoreboard and nothing else — the planning pages are the organiser's.
+  // The dashboard and /standings are public, so a visitor may have no session at
+  // all. Show them those two and nothing else — the planning pages are the
+  // organiser's.
   const signedIn = state?.signedIn === true;
 
   const nav = signedIn
@@ -21,7 +22,10 @@ export default function App(
       { href: "/data", label: "data" },
       { href: "/standings", label: "standings" },
     ]
-    : [{ href: "/standings", label: "standings" }];
+    : [
+      { href: "/", label: "dashboard" },
+      { href: "/standings", label: "standings" },
+    ];
 
   const active = (href: string) =>
     href === "/" ? url.pathname === "/" : url.pathname.startsWith(href);
@@ -109,6 +113,30 @@ export default function App(
                 <StroopwafelEgg />
                 <StraatToggle />
                 <ThemeToggle />
+                {!signedIn && (
+                  <a
+                    href="/login"
+                    class="ui-icon-btn no-underline"
+                    title="Sign in"
+                    aria-label="Sign in"
+                  >
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                      <polyline points="10 17 15 12 10 7" />
+                      <line x1="15" y1="12" x2="3" y2="12" />
+                    </svg>
+                  </a>
+                )}
                 {signedIn && (
                   <form method="post" action="/logout">
                     <button

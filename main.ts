@@ -13,12 +13,15 @@ app.use(staticFiles());
 const gate = define.middleware(async (ctx) => {
   const path = ctx.url.pathname;
 
-  // The scoreboard is the one public surface: gamification needs an audience, and
-  // the rest of this app is a private organiser's tool. It is read-only.
+  // Two public surfaces, both read-only: the scoreboard, because gamification needs
+  // an audience, and a look at the dashboard, so colleagues can see what's coming
+  // up. Only GET — the dashboard's capture and schedule forms POST to "/", and
+  // those stay behind the password. Everything else is the organiser's tool.
   //
   // Still resolve the cookie before letting it through — otherwise a signed-in
-  // organiser looks anonymous on this one page and the shell hides their own nav.
-  if (path === "/standings") {
+  // organiser looks anonymous on these pages and the shell hides their own nav.
+  const reading = ctx.req.method === "GET" || ctx.req.method === "HEAD";
+  if (path === "/standings" || (path === "/" && reading)) {
     ctx.state.signedIn = await isSignedIn(ctx.req);
     return ctx.next();
   }

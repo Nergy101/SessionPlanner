@@ -741,6 +741,35 @@ await shot("subjects-filtered");
     anon.url(),
   );
 
+  // The dashboard is public too, but only to look at.
+  await anon.goto(`${BASE}/`);
+  await anon.waitForLoadState("networkidle");
+  check(
+    "dashboard: readable with no cookie at all",
+    new URL(anon.url()).pathname === "/",
+    anon.url(),
+  );
+  check(
+    "dashboard: a visitor gets no forms to change anything",
+    (await anon.locator("main form").count()) === 0,
+    `${await anon.locator("main form").count()} forms`,
+  );
+  check(
+    "dashboard: and no links into the private pages",
+    (await anon.locator('main a[href^="/subjects"], main a[href^="/sessions"]')
+      .count()) === 0,
+  );
+  const blocked = await anon.request.post(`${BASE}/`, {
+    form: { title: "sneaky visitor topic" },
+    maxRedirects: 0,
+  });
+  check(
+    "dashboard: posting to it still needs the password",
+    blocked.status() === 303 &&
+      (blocked.headers().location ?? "").includes("/login"),
+    `${blocked.status()} ${blocked.headers().location}`,
+  );
+
   await anon.goto(`${BASE}/standings`);
   await anon.waitForLoadState("networkidle");
   check(

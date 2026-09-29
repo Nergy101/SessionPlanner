@@ -2,19 +2,32 @@ import type { ComponentChildren } from "preact";
 import type { Subject } from "@/services/subjects.ts";
 import { StatusBadge } from "./StatusBadge.tsx";
 
-/** `children` render at the bottom of the card, for per-view actions. */
+/**
+ * `children` render at the bottom of the card, for per-view actions. `linked`
+ * turns the title off as a link, for visitors who can't open the subject page.
+ */
 export function SubjectCard(
-  { subject, children }: { subject: Subject; children?: ComponentChildren },
+  { subject, children, linked = true }: {
+    subject: Subject;
+    children?: ComponentChildren;
+    linked?: boolean;
+  },
 ) {
+  const titleClass =
+    "font-mono text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100";
   return (
     <article class="ui-card">
       <div class="flex items-start justify-between gap-2">
-        <a
-          href={`/subjects/${subject.id}`}
-          class="font-mono text-sm font-semibold leading-snug text-slate-900 no-underline hover:text-brand dark:text-slate-100"
-        >
-          {subject.title}
-        </a>
+        {linked
+          ? (
+            <a
+              href={`/subjects/${subject.id}`}
+              class={`${titleClass} no-underline hover:text-brand`}
+            >
+              {subject.title}
+            </a>
+          )
+          : <span class={titleClass}>{subject.title}</span>}
         <StatusBadge status={subject.status} />
       </div>
 

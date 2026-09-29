@@ -22,6 +22,11 @@ import PeoplePicker from "@/islands/PeoplePicker.tsx";
 /** How many upcoming sessions the dashboard lists before deferring to /sessions. */
 const UPCOMING_LIMIT = 5;
 
+/**
+ * Visitors without the password get this page read-only (see the gate in main.ts):
+ * the same lists, but no capture box, no forms, and no links into the private
+ * subject and session pages they'd only bounce off.
+ */
 export const handler = define.handlers({
   async GET(ctx) {
     const [upcoming, pool] = await Promise.all([
@@ -95,8 +100,9 @@ export const handler = define.handlers({
   },
 });
 
-export default define.page<typeof handler>(function Dashboard({ data }) {
+export default define.page<typeof handler>(function Dashboard({ data, state }) {
   const { upcoming, slots, ready, ideas, added, scheduled, speaker } = data;
+  const signedIn = state.signedIn;
 
   return (
     <>
@@ -107,43 +113,59 @@ export default define.page<typeof handler>(function Dashboard({ data }) {
         </p>
       </div>
 
-      <div class="mb-9">
-        <QuickAdd
-          action="/"
-          autofocus
-          placeholder="heard a good topic? type it here…"
-          label="capture"
-        />
-        {added && (
-          <p class="ui-hint mt-2">
-            added{" "}
-            <strong class="text-slate-900 dark:text-slate-100">{added}</strong>
-            {" "}
-            — keep typing to add another.
-          </p>
-        )}
-      </div>
+      {signedIn && (
+        <div class="mb-9">
+          <QuickAdd
+            action="/"
+            autofocus
+            placeholder="heard a good topic? type it here…"
+            label="capture"
+          />
+          {added && (
+            <p class="ui-hint mt-2">
+              added{" "}
+              <strong class="text-slate-900 dark:text-slate-100">
+                {added}
+              </strong>{" "}
+              — keep typing to add another.
+            </p>
+          )}
+        </div>
+      )}
 
       <section class="mb-9">
         <div class="ui-section-head">
           <h2>upcoming sessions</h2>
-          <a href="/sessions" class="ui-hint no-underline hover:text-brand">
-            all sessions →
-          </a>
+          {signedIn && (
+            <a href="/sessions" class="ui-hint no-underline hover:text-brand">
+              all sessions →
+            </a>
+          )}
         </div>
 
         {upcoming.length
           ? (
             <div class="ui-table-wrap">
               {upcoming.map((s, i) => (
-                <UpcomingRow key={s.id} session={s} first={i === 0} />
+                <UpcomingRow
+                  key={s.id}
+                  session={s}
+                  first={i === 0}
+                  linked={signedIn}
+                />
               ))}
             </div>
           )
           : (
             <div class="ui-empty">
-              No session scheduled yet. <a href="/sessions">Pick a date</a>{" "}
-              to start planning one.
+              {signedIn
+                ? (
+                  <>
+                    No session scheduled yet.{" "}
+                    <a href="/sessions">Pick a date</a> to start planning one.
+                  </>
+                )
+                : "No session scheduled yet."}
             </div>
           )}
       </section>
@@ -165,8 +187,8 @@ export default define.page<typeof handler>(function Dashboard({ data }) {
           ? (
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {ready.map((s) => (
-                <SubjectCard key={s.id} subject={s}>
-                  {slots.length
+                <SubjectCard key={s.id} subject={s} linked={signedIn}>
+                  {!signedIn ? null : slots.length
                     ? (
                       <form method="post" action="/">
                         <input type="hidden" name="intent" value="schedule" />
@@ -219,29 +241,43 @@ export default define.page<typeof handler>(function Dashboard({ data }) {
           ? (
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {ideas.map((s) => (
-                <SubjectCard key={s.id} subject={s}>
-                  <form method="post" action="/">
-                    <input type="hidden" name="intent" value="speaker" />
-                    <input type="hidden" name="subject" value={s.id} />
-                    <PeoplePicker
-                      initial={[]}
-                      autoSubmit
-                      placeholder="assign a speaker…"
-                      inputClass="ui-input py-1 text-xs"
-                    />
-                  </form>
+                <SubjectCard key={s.id} subject={s} linked={signedIn}>
+                  {signedIn && (
+                    <form method="post" action="/">
+                      <input type="hidden" name="intent" value="speaker" />
+                      <input type="hidden" name="subject" value={s.id} />
+                      <PeoplePicker
+                        initial={[]}
+                        autoSubmit
+                        placeholder="assign a speaker…"
+                        inputClass="ui-input py-1 text-xs"
+                      />
+                    </form>
+                  )}
                 </SubjectCard>
               ))}
             </div>
           )
-          : <div class="ui-empty">No loose ideas. Capture one above.</div>}
+          : (
+            <div class="ui-empty">
+              {signedIn
+                ? "No loose ideas. Capture one above."
+                : "No loose ideas."}
+            </div>
+          )}
       </section>
     </>
   );
 });
 
 /** One line per session: the date on the left, what's on it to the right. */
-function UpcomingRow({ session, first }: { session: Session; first: boolean }) {
+function UpcomingRow(
+  { session, first, linked }: {
+    session: Session;
+    first: boolean;
+    linked: boolean;
+  },
+) {
   const date = new Date(`${session.date}T00:00:00`).toLocaleDateString(
     "en-GB",
     { weekday: "short", day: "numeric", month: "short" },
@@ -254,12 +290,20 @@ function UpcomingRow({ session, first }: { session: Session; first: boolean }) {
       }`}
     >
       <div class="flex shrink-0 items-baseline gap-2 sm:w-40 sm:flex-col sm:gap-0">
-        <a
-          href={`/sessions/${session.id}`}
-          class="font-mono text-sm font-semibold text-slate-900 no-underline hover:text-brand dark:text-slate-100"
-        >
-          {date}
-        </a>
+        {linked
+          ? (
+            <a
+              href={`/sessions/${session.id}`}
+              class="font-mono text-sm font-semibold text-slate-900 no-underline hover:text-brand dark:text-slate-100"
+            >
+              {date}
+            </a>
+          )
+          : (
+            <span class="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {date}
+            </span>
+          )}
         <span class={`ui-hint ${first ? "text-brand dark:text-brand" : ""}`}>
           {daysAway(session.date)}
         </span>
@@ -274,12 +318,20 @@ function UpcomingRow({ session, first }: { session: Session; first: boolean }) {
                   key={s.id}
                   class="flex flex-wrap items-center gap-x-2 gap-y-0.5"
                 >
-                  <a
-                    href={`/subjects/${s.id}`}
-                    class="font-mono text-[0.8rem] text-slate-900 no-underline hover:text-brand dark:text-slate-100"
-                  >
-                    {s.title}
-                  </a>
+                  {linked
+                    ? (
+                      <a
+                        href={`/subjects/${s.id}`}
+                        class="font-mono text-[0.8rem] text-slate-900 no-underline hover:text-brand dark:text-slate-100"
+                      >
+                        {s.title}
+                      </a>
+                    )
+                    : (
+                      <span class="font-mono text-[0.8rem] text-slate-900 dark:text-slate-100">
+                        {s.title}
+                      </span>
+                    )}
                   {s.people.length
                     ? (
                       <span class="ui-hint">
@@ -295,14 +347,16 @@ function UpcomingRow({ session, first }: { session: Session; first: boolean }) {
               ))}
             </ul>
           )
-          : (
+          : linked
+          ? (
             <a
               href={`/sessions/${session.id}`}
               class="ui-hint italic no-underline hover:text-brand"
             >
               nothing planned yet — add a topic
             </a>
-          )}
+          )
+          : <span class="ui-hint italic">nothing planned yet</span>}
       </div>
     </div>
   );
