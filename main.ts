@@ -9,19 +9,14 @@ export const app = new App<State>();
 
 app.use(staticFiles());
 
-/** Everything except /login and the assets needs the cookie. */
+/** The dashboard is the only public view; everything else needs the cookie. */
 const gate = define.middleware(async (ctx) => {
   const path = ctx.url.pathname;
 
-  // Two public surfaces, both read-only: the scoreboard, because gamification needs
-  // an audience, and a look at the dashboard, so colleagues can see what's coming
-  // up. Only GET — the dashboard's capture and schedule forms POST to "/", and
-  // those stay behind the password. Everything else is the organiser's tool.
-  //
-  // Still resolve the cookie before letting it through — otherwise a signed-in
-  // organiser looks anonymous on these pages and the shell hides their own nav.
+  // Let visitors read the dashboard, but never mutate it. All planning views,
+  // including standings, belong to the signed-in organiser.
   const reading = ctx.req.method === "GET" || ctx.req.method === "HEAD";
-  if (path === "/standings" || (path === "/" && reading)) {
+  if (path === "/" && reading) {
     ctx.state.signedIn = await isSignedIn(ctx.req);
     return ctx.next();
   }

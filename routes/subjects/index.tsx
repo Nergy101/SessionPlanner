@@ -254,7 +254,15 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
             </div>
           )
           : (
-            <div class="overflow-x-auto">
+            <div
+              class="overflow-x-auto"
+              role="region"
+              tabindex={0}
+              aria-label="Subjects table; scroll horizontally to see all columns"
+            >
+              <p class="ui-hint block px-3 py-2 lg:hidden">
+                Swipe horizontally to see all columns →
+              </p>
               <table class="w-full border-collapse">
                 <thead>
                   <tr>
