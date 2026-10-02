@@ -48,7 +48,7 @@ export function NewSession(props: {
           />
         </div>
 
-        <div class="min-w-[18rem] flex-1">
+        <div class="min-w-0 flex-1 basis-full sm:min-w-[18rem] sm:basis-auto">
           <label class="ui-label" for="subjectTitle">
             Subject{" "}
             <span class="ui-label-hint">(pick one, or type a new topic)</span>
@@ -81,7 +81,7 @@ export function NewSession(props: {
             </p>
           )
           : (
-            <div class="min-w-[18rem] flex-1">
+            <div class="min-w-0 flex-1 basis-full sm:min-w-[18rem] sm:basis-auto">
               <label class="ui-label" for="speaker">
                 Speaker{" "}
                 <span class="ui-label-hint">

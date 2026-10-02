@@ -8,24 +8,17 @@ import StroopwafelEgg from "@/islands/StroopwafelEgg.tsx";
 export default function App(
   { Component, url, state }: PageProps<unknown, State>,
 ) {
-  // The dashboard and /standings are public, so a visitor may have no session at
-  // all. Show them those two and nothing else — the planning pages are the
-  // organiser's.
+  // The public dashboard has no app chrome; all other views belong to the organiser.
   const signedIn = state?.signedIn === true;
 
-  const nav = signedIn
-    ? [
-      { href: "/", label: "dashboard" },
-      { href: "/subjects", label: "subjects" },
-      { href: "/sessions", label: "sessions" },
-      { href: "/people", label: "people" },
-      { href: "/data", label: "data" },
-      { href: "/standings", label: "standings" },
-    ]
-    : [
-      { href: "/", label: "dashboard" },
-      { href: "/standings", label: "standings" },
-    ];
+  const nav = [
+    { href: "/", label: "dashboard" },
+    { href: "/subjects", label: "subjects" },
+    { href: "/sessions", label: "sessions" },
+    { href: "/people", label: "people" },
+    { href: "/data", label: "data" },
+    { href: "/standings", label: "standings" },
+  ];
 
   const active = (href: string) =>
     href === "/" ? url.pathname === "/" : url.pathname.startsWith(href);
@@ -37,7 +30,10 @@ export default function App(
     <html lang="en" class="dark">
       <head>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+        />
         <title>session-planner</title>
         <link rel="icon" href={asset("/favicon.ico")} />
         {/* Applied before first paint, so there is no flash of the other theme. */}
@@ -76,68 +72,90 @@ export default function App(
               Skip to content
             </a>
 
-            <header class="sticky top-0 z-30 flex items-center gap-2 border-b border-dashed border-slate-300 bg-white/90 px-3 py-3 shadow-sm backdrop-blur sm:gap-6 sm:px-6 dark:border-slate-700 dark:bg-slate-900/90">
-              <a
-                href="/"
-                class="flex min-w-0 flex-col leading-tight no-underline"
-              >
-                <span class="truncate font-mono text-sm font-bold tracking-tight text-slate-900 sm:text-base dark:text-slate-100">
-                  session-planner
-                </span>
-                <span class="hidden font-mono text-xs text-slate-600 sm:block dark:text-slate-400">
-                  internal talks · planning
-                </span>
-              </a>
+            {signedIn && (
+              <header class="app-header sticky top-0 z-30 flex items-center gap-2 border-b border-dashed border-slate-300 bg-white/90 shadow-sm backdrop-blur md:gap-4 dark:border-slate-700 dark:bg-slate-900/90">
+                <a
+                  href="/"
+                  class="flex min-w-0 flex-1 flex-col leading-tight no-underline md:flex-none"
+                >
+                  <span class="truncate font-mono text-sm font-bold tracking-tight text-slate-900 md:text-base dark:text-slate-100">
+                    session-planner
+                  </span>
+                  <span class="hidden font-mono text-xs text-slate-600 md:block dark:text-slate-400">
+                    internal talks · planning
+                  </span>
+                </a>
 
-              <nav
-                class="mr-auto flex min-w-0 gap-0.5 sm:gap-1"
-                aria-label="Sections"
-              >
-                {nav.map((item) => (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    aria-current={active(item.href) ? "page" : undefined}
-                    class={`inline-flex h-9 shrink-0 items-center rounded-md px-1.5 font-mono text-sm font-medium no-underline transition sm:px-3 ${
-                      active(item.href)
-                        ? "bg-brand text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    {item.label}
-                  </a>
-                ))}
-              </nav>
+                <nav
+                  class="mr-auto hidden min-w-0 gap-1 lg:flex"
+                  aria-label="Sections"
+                >
+                  {nav.map((item) => (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      aria-current={active(item.href) ? "page" : undefined}
+                      class={`inline-flex h-9 shrink-0 items-center rounded-md px-3 font-mono text-sm font-medium no-underline transition ${
+                        active(item.href)
+                          ? "bg-brand text-white shadow-sm"
+                          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {item.label}
+                    </a>
+                  ))}
+                </nav>
 
-              <div class="flex items-center gap-1">
-                <StroopwafelEgg />
-                <StraatToggle />
-                <ThemeToggle />
-                {!signedIn && (
-                  <a
-                    href="/login"
-                    class="ui-icon-btn no-underline"
-                    title="Sign in"
-                    aria-label="Sign in"
+                <details class="relative shrink-0 lg:hidden">
+                  <summary
+                    class="ui-icon-btn h-11 w-11 cursor-pointer list-none"
+                    aria-label="Open section navigation"
+                    title="Open navigation"
                   >
                     <svg
-                      width="17"
-                      height="17"
+                      width="20"
+                      height="20"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
                       stroke-width="2"
                       stroke-linecap="round"
-                      stroke-linejoin="round"
                       aria-hidden="true"
                     >
-                      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                      <polyline points="10 17 15 12 10 7" />
-                      <line x1="15" y1="12" x2="3" y2="12" />
+                      <line x1="4" y1="6" x2="20" y2="6" />
+                      <line x1="4" y1="12" x2="20" y2="12" />
+                      <line x1="4" y1="18" x2="20" y2="18" />
                     </svg>
-                  </a>
-                )}
-                {signedIn && (
+                  </summary>
+                  <nav
+                    class="absolute right-0 top-full z-40 mt-2 flex min-w-48 flex-col gap-1 rounded-lg border border-dashed border-slate-300 bg-white p-2 shadow-lg dark:border-slate-600 dark:bg-slate-900"
+                    aria-label="Sections"
+                  >
+                    {nav.map((item) => (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        aria-current={active(item.href) ? "page" : undefined}
+                        class={`flex min-h-10 items-center rounded-md px-3 font-mono text-sm font-medium no-underline transition ${
+                          active(item.href)
+                            ? "bg-brand text-white shadow-sm"
+                            : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {item.label}
+                      </a>
+                    ))}
+                  </nav>
+                </details>
+
+                <div class="flex shrink-0 items-center gap-1">
+                  <span class="hidden lg:inline-flex">
+                    <StroopwafelEgg />
+                  </span>
+                  <span class="hidden lg:inline-flex">
+                    <StraatToggle />
+                  </span>
+                  <ThemeToggle />
                   <form method="post" action="/logout">
                     <button
                       type="submit"
@@ -162,13 +180,15 @@ export default function App(
                       </svg>
                     </button>
                   </form>
-                )}
-              </div>
-            </header>
+                </div>
+              </header>
+            )}
 
             <main
               id="main"
-              class="mx-auto w-full max-w-6xl flex-1 px-4 py-7 pb-16 sm:px-6"
+              class={`app-main mx-auto w-full max-w-6xl flex-1 ${
+                signedIn ? "" : "app-main-public"
+              }`}
             >
               <Component />
             </main>

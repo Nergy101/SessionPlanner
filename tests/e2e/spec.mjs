@@ -84,7 +84,8 @@ check(
   })(),
 );
 
-// ---- empty states --------------------------------------------------------
+// ---- empty states or demo fixture content -------------------------------
+const seeded = process.env.E2E_SEEDED === "1";
 for (
   const [path, name] of [
     ["/", "dashboard"],
@@ -96,8 +97,12 @@ for (
   await page.goto(BASE + path);
   await settle();
   check(
-    `${name}: renders an empty state on a fresh database`,
-    (await page.locator(".ui-empty").count()) > 0,
+    seeded
+      ? `${name}: demo fixture fills the view`
+      : `${name}: renders an empty state on a fresh database`,
+    seeded
+      ? (await page.locator(".ui-empty").count()) === 0
+      : (await page.locator(".ui-empty").count()) > 0,
   );
 }
 
@@ -119,9 +124,9 @@ check(
 );
 
 const titles = [
-  "Feature flags without a vendor",
-  "Kubernetes: we stopped",
-  "SQLite is enough",
+  "E2E: Feature flags without a vendor",
+  "E2E: Kubernetes: we stopped",
+  "E2E: SQLite is enough",
 ];
 for (const t of titles) {
   await page.keyboard.type(t); // blind: focus must already be in the box
@@ -132,16 +137,20 @@ for (const t of titles) {
     page.url(),
   );
 }
+const capturedCards = await Promise.all(
+  titles.map((title) =>
+    page.locator(".ui-card").filter({ hasText: title }).count()
+  ),
+);
 check(
-  "dashboard: all three land in 'needs a speaker'",
-  (await page.locator(".ui-card").count()) === 3,
-  `${await page.locator(".ui-card").count()} cards`,
+  "dashboard: all three captured subjects land in 'needs a speaker'",
+  capturedCards.every((count) => count === 1),
+  `${capturedCards.join(", ")} matching cards`,
 );
 await shot("dashboard");
 
 // ---- the ladder, through the UI -----------------------------------------
-await page.locator('.ui-card a:has-text("Feature flags without a vendor")')
-  .click();
+await page.getByRole("link", { name: titles[0], exact: true }).click();
 await settle();
 check(
   "subject detail: description autofocused",
@@ -510,7 +519,13 @@ check(
 // exact row count would break every time the flow above changes.
 const peopleBefore = await page.locator("table tbody tr").count();
 
-for (const name of ["Sanne Bakker", "Youssef el Amrani", "Marieke Post"]) {
+for (
+  const name of [
+    "E2E Sanne Bakker",
+    "E2E Youssef el Amrani",
+    "E2E Marieke Post",
+  ]
+) {
   await page.keyboard.type(name); // blind again: focus must come back to the box
   await submitAndWait(() => page.keyboard.press("Enter"));
   check(
@@ -526,7 +541,7 @@ check(
 );
 
 // adding a duplicate must not create a second row, and must say so
-await page.keyboard.type("sanne bakker");
+await page.keyboard.type("e2e sanne bakker");
 await submitAndWait(() => page.keyboard.press("Enter"));
 check(
   "people: a duplicate name is recognised rather than duplicated",
@@ -571,7 +586,10 @@ check(
   }),
 );
 
-const row = page.locator("table tbody tr").first();
+const row = page.locator("table tbody tr").filter({
+  has: page.locator(`input[name="title"][value="${titles[0]}"]`),
+}).first();
+check("subjects: captured test row is unique", await row.count() === 1);
 await row.locator("button[popovertarget]:not([popovertargetaction])").click();
 await page.waitForTimeout(400);
 check(
@@ -606,8 +624,22 @@ check(
   box ? `left=${box.left} top=${box.top}` : "not open",
 );
 
-// tick two people at once — this is the multi-select
+// Clear the fixture's existing speaker first; assigning two proves idea → assigned.
 const boxes = page.locator("[popover]:visible input[type=checkbox]");
+for (let i = 0; i < await boxes.count(); i++) {
+  if (await boxes.nth(i).isChecked()) await boxes.nth(i).uncheck();
+}
+await submitAndWait(() =>
+  page.locator("[popover] button[type=submit]:visible").click()
+);
+check(
+  "speakers: clearing the last one returns it to idea",
+  (await row.locator("select[name=status]").inputValue()) === "idea",
+  await row.locator("select[name=status]").inputValue(),
+);
+
+await row.locator("button[popovertarget]:not([popovertargetaction])").click();
+await page.waitForTimeout(400);
 await boxes.nth(0).check();
 await boxes.nth(1).check();
 await submitAndWait(() =>
@@ -727,21 +759,26 @@ if (personOptions > 1) {
 }
 await shot("subjects-filtered");
 
-// ---- gamification --------------------------------------------------------
-// The scoreboard is the one public surface, so check it with a signed-out browser.
+// ---- public dashboard and access control -------------------------------
 {
   const anon = await browser.newPage({
     viewport: { width: 1400, height: 1200 },
   });
 
-  await anon.goto(`${BASE}/subjects`);
-  check(
-    "standings: the planning pages stay private",
-    anon.url().includes("/login"),
-    anon.url(),
-  );
+  for (
+    const path of ["/subjects", "/sessions", "/people", "/data", "/standings"]
+  ) {
+    await anon.goto(`${BASE}${path}`);
+    await anon.waitForLoadState("networkidle");
+    check(
+      `access: ${path} redirects an anonymous visitor to sign in`,
+      new URL(anon.url()).pathname === "/login" &&
+        new URL(anon.url()).searchParams.get("returnTo") === path,
+      anon.url(),
+    );
+  }
 
-  // The dashboard is public too, but only to look at.
+  // The dashboard is the only public view, and it is read-only.
   await anon.goto(`${BASE}/`);
   await anon.waitForLoadState("networkidle");
   check(
@@ -759,6 +796,14 @@ await shot("subjects-filtered");
     (await anon.locator('main a[href^="/subjects"], main a[href^="/sessions"]')
       .count()) === 0,
   );
+  check(
+    "dashboard: anonymous visitors get no app header or navigation",
+    (await anon.locator("header, nav").count()) === 0,
+  );
+  check(
+    "dashboard: sign-in remains discoverable from the page",
+    (await anon.locator('main a[href="/login"]').count()) === 1,
+  );
   const blocked = await anon.request.post(`${BASE}/`, {
     form: { title: "sneaky visitor topic" },
     maxRedirects: 0,
@@ -770,32 +815,14 @@ await shot("subjects-filtered");
     `${blocked.status()} ${blocked.headers().location}`,
   );
 
-  await anon.goto(`${BASE}/standings`);
-  await anon.waitForLoadState("networkidle");
-  check(
-    "standings: reachable with no cookie at all",
-    anon.url().endsWith("/standings"),
-    anon.url(),
-  );
-  check(
-    "standings: a signed-out visitor gets no sign-out button",
-    (await anon.locator('form[action="/logout"]').count()) === 0,
-  );
-  check(
-    "standings: and no links into the private pages",
-    (await anon.locator('nav a[href="/subjects"]').count()) === 0,
-  );
-
-  // The gate has to resolve the cookie even though it lets everyone through, or a
-  // signed-in organiser looks anonymous here and loses their own navigation.
+  // Signed-in organisers retain the complete desktop navigation and scoreboard.
   await page.goto(`${BASE}/standings`);
   await settle();
   check(
-    "standings: a signed-in organiser keeps the full nav",
-    (await page.locator('nav a[href="/subjects"]').count()) === 1 &&
-      (await page.locator('nav a[href="/sessions"]').count()) === 1 &&
-      (await page.locator('nav a[href="/people"]').count()) === 1,
-    `${await page.locator("nav a").count()} nav links`,
+    "standings: signed-in organiser sees all navigation sections",
+    (await page.locator('nav[aria-label="Sections"]:visible a').count()) === 6,
+    `${await page.locator('nav[aria-label="Sections"]:visible a')
+      .count()} visible links`,
   );
   check(
     "standings: and still has a sign-out button",
@@ -804,19 +831,19 @@ await shot("subjects-filtered");
 
   check(
     "standings: the season progress bar renders",
-    (await anon.locator("[role=progressbar]").count()) === 1,
+    (await page.locator("[role=progressbar]").count()) === 1,
   );
   check(
     "standings: the radar shows every tech area",
-    (await anon.locator("text=never covered").count()) > 0,
+    (await page.locator("text=never covered").count()) > 0,
   );
 
   // Roulette is the one island here.
-  const spin = anon.locator('button:has-text("spin")');
+  const spin = page.locator('button:has-text("spin")');
   if (await spin.count()) {
     await spin.click();
-    await anon.waitForTimeout(6000);
-    const landed = await anon.evaluate(() =>
+    await page.waitForTimeout(6000);
+    const landed = await page.evaluate(() =>
       document.body.innerText.includes("No pressure")
     );
     check("roulette: spinning lands on somebody", landed);
@@ -828,7 +855,7 @@ await shot("subjects-filtered");
     );
   }
 
-  await anon.screenshot({ path: `${OUT}/standings.png`, fullPage: true });
+  await page.screenshot({ path: `${OUT}/standings.png`, fullPage: true });
   await anon.close();
 }
 
@@ -836,7 +863,9 @@ await shot("subjects-filtered");
 {
   await page.goto(`${BASE}/subjects`);
   await settle();
-  await page.locator('table tbody tr a:has-text("edit")').first().click();
+  await page.locator("table tbody tr").filter({
+    has: page.locator(`input[name="title"][value="${titles[0]}"]`),
+  }).locator('a:has-text("edit")').click();
   await settle();
 
   await page.locator('input[name="bounty"]').fill("30");
@@ -878,18 +907,16 @@ await shot("subjects-filtered");
     page.locator('form:has(input[name="bounty"]) button[type=submit]').click()
   );
 
-  const anon2 = await browser.newPage();
-  await anon2.goto(`${BASE}/standings`);
-  await anon2.waitForLoadState("networkidle");
+  await page.goto(`${BASE}/standings`);
+  await settle();
   check(
-    "bounty: an unclaimed one shows on the public board",
-    (await anon2.locator("text=45 XP").count()) > 0,
+    "bounty: an unclaimed one shows on the organiser's standings",
+    (await page.locator("text=45 XP").count()) > 0,
   );
   check(
     "bounty: a claimed one does not",
-    (await anon2.locator("text=30 XP").count()) === 0,
+    (await page.locator("text=30 XP").count()) === 0,
   );
-  await anon2.close();
 }
 
 // ---- themes --------------------------------------------------------------
@@ -898,6 +925,182 @@ await settle();
 await page.evaluate(() => document.documentElement.classList.remove("dark"));
 await page.waitForTimeout(200);
 await shot("dashboard-light");
+
+// ---- responsive smoke pass ------------------------------------------------
+const anonMobile = await browser.newPage({
+  viewport: { width: 390, height: 844 },
+});
+const anonMobileErrors = [];
+anonMobile.on("console", (m) => {
+  if (m.type() === "error") anonMobileErrors.push(m.text());
+});
+for (const width of [320, 360, 390, 768, 1280]) {
+  await anonMobile.setViewportSize({ width, height: 844 });
+  await anonMobile.goto(`${BASE}/`);
+  await anonMobile.waitForLoadState("networkidle");
+  const anonLayout = await anonMobile.evaluate(() => ({
+    width: innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  check(
+    `mobile: signed-out dashboard fits ${width}px with no navigation shell`,
+    anonLayout.scrollWidth <= anonLayout.width + 1 &&
+      (await anonMobile.locator("header, nav").count()) === 0,
+    `${anonLayout.scrollWidth}px document`,
+  );
+  check(
+    `mobile: sign-in call-to-action is visible at ${width}px`,
+    await anonMobile.locator('main a[href="/login"]').isVisible(),
+  );
+  if (width === 390) {
+    const safeAreaPadding = await anonMobile.evaluate(() =>
+      Array.from(document.styleSheets).some((sheet) => {
+        try {
+          return Array.from(sheet.cssRules).some((rule) =>
+            rule.cssText.includes(".app-main-public") &&
+            rule.cssText.includes("safe-area-inset-top")
+          );
+        } catch {
+          return false;
+        }
+      })
+    );
+    check(
+      "mobile: public dashboard content respects the iOS top safe area",
+      safeAreaPadding,
+      "public main must add breathing room after safe-area-inset-top",
+    );
+    await anonMobile.screenshot({
+      path: `${OUT}/dashboard-anonymous-mobile.png`,
+      fullPage: true,
+    });
+  }
+}
+
+await anonMobile.setViewportSize({ width: 320, height: 844 });
+await anonMobile.goto(`${BASE}/login`);
+await anonMobile.waitForLoadState("networkidle");
+check(
+  "mobile: login form fits a 320px viewport",
+  await anonMobile.evaluate(() =>
+    document.documentElement.scrollWidth <= innerWidth + 1
+  ),
+);
+await anonMobile.close();
+
+await page.goto(`${BASE}/sessions`);
+await settle();
+const sessionDetailPath = await page.locator('a[href^="/sessions/"]').first()
+  .getAttribute("href");
+await page.goto(`${BASE}/subjects`);
+await settle();
+const subjectDetailPath = await page.locator(
+  'table tbody tr a[href^="/subjects/"]',
+)
+  .first().getAttribute("href");
+const responsivePaths = [
+  "/",
+  "/sessions",
+  sessionDetailPath,
+  "/subjects",
+  subjectDetailPath,
+  "/people",
+  "/data",
+  "/standings",
+];
+for (const width of [320, 360, 390, 768, 900, 1023, 1024, 1280]) {
+  await page.setViewportSize({ width, height: 844 });
+  for (const path of responsivePaths) {
+    await page.goto(`${BASE}${path}`);
+    await settle();
+    const layout = await page.evaluate(() => {
+      const scrollWidth = document.documentElement.scrollWidth;
+      const overflowing = scrollWidth > innerWidth
+        ? [...document.querySelectorAll("body *")]
+          .map((el) => ({ el, rect: el.getBoundingClientRect() }))
+          .filter(({ rect }) => rect.right > innerWidth + 0.5)
+          .slice(0, 5)
+          .map(({ el, rect }) =>
+            `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 50)}=${
+              rect.right.toFixed(1)
+            }`
+          )
+        : [];
+      return { width: innerWidth, scrollWidth, overflowing };
+    });
+    check(
+      `mobile: ${path} fits ${width}px without page-level horizontal overflow`,
+      layout.scrollWidth <= layout.width,
+      `${layout.scrollWidth}px document${
+        layout.overflowing.length
+          ? `; over: ${layout.overflowing.join(", ")}`
+          : ""
+      }`,
+    );
+    check(
+      `mobile: ${path} has the expected navigation at ${width}px`,
+      width < 1024
+        ? await page.locator("header details").isVisible() &&
+          !(await page.locator('nav[aria-label="Sections"]:visible a').count())
+        : !(await page.locator("header details").isVisible()) &&
+          (await page.locator('nav[aria-label="Sections"]:visible a')
+              .count()) === 6,
+    );
+
+    if (width >= 1024 && path === "/") {
+      const navFits = await page.evaluate(() => {
+        const header = document.querySelector("header");
+        const brand = header?.querySelector('a[href="/"]');
+        const nav = header?.querySelector(
+          ':scope > nav[aria-label="Sections"]',
+        );
+        const actions = header?.querySelector('form[action="/logout"]')
+          ?.parentElement;
+        const firstLink = nav?.firstElementChild?.getBoundingClientRect();
+        const lastLink = nav?.lastElementChild?.getBoundingClientRect();
+        const brandBox = brand?.getBoundingClientRect();
+        const actionsBox = actions?.getBoundingClientRect();
+        return !!firstLink && !!lastLink && !!brandBox && !!actionsBox &&
+          brandBox.right <= firstLink.left + 1 &&
+          lastLink.right <= actionsBox.left + 1;
+      });
+      check(
+        `desktop: navigation fits without overlapping controls at ${width}px`,
+        navFits,
+      );
+    }
+
+    if (width < 1024 && ["/subjects", "/people", "/standings"].includes(path)) {
+      check(
+        `mobile: ${path} explains horizontally scrollable table content`,
+        await page.getByText("Swipe horizontally to see all columns →")
+          .isVisible() &&
+          (await page.locator('[role="region"][tabindex="0"]').count()) > 0,
+      );
+    }
+
+    if (width === 320 && path === "/") {
+      await page.locator("header details summary").click();
+      check(
+        "mobile: menu opens with all sections reachable",
+        await page.locator("header details[open] nav a").count() === 6 &&
+          await page.locator("header details nav").isVisible(),
+      );
+    }
+    if (width === 390 && ["/", "/subjects", "/standings"].includes(path)) {
+      const name = path === "/" ? "dashboard" : path.slice(1);
+      await page.screenshot({
+        path: `${OUT}/${name}-mobile.png`,
+        fullPage: true,
+      });
+    }
+  }
+}
+check(
+  "mobile: no anonymous-browser console errors",
+  anonMobileErrors.length === 0,
+  anonMobileErrors.slice(0, 2).join(" | "),
+);
 
 check(
   "no console errors anywhere",

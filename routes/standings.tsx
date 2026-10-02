@@ -14,11 +14,10 @@ import { formatShortDate } from "@/services/sessions.ts";
 import Roulette from "@/islands/Roulette.tsx";
 
 /**
- * The public scoreboard.
+ * The organiser's read-only scoreboard.
  *
- * Deliberately unauthenticated (see the gate in main.ts): gamification needs an
- * audience, and the rest of the app is a private organiser's tool. Read-only —
- * nothing here can change anything.
+ * It requires the organiser password like the other planning views (see the gate
+ * in main.ts). Nothing here can change anything.
  */
 export const handler = define.handlers({
   async GET() {
@@ -149,7 +148,15 @@ export default define.page<typeof handler>(function Standings({ data }) {
         {board.length === 0
           ? <div class="ui-empty">Nothing scored yet. Present something.</div>
           : (
-            <div class="ui-table-wrap overflow-x-auto">
+            <div
+              class="ui-table-wrap overflow-x-auto"
+              role="region"
+              tabindex={0}
+              aria-label="Leaderboard; scroll horizontally to see all columns"
+            >
+              <p class="ui-hint block px-3 py-2 lg:hidden">
+                Swipe horizontally to see all columns →
+              </p>
               <table class="w-full border-collapse">
                 <thead>
                   <tr>

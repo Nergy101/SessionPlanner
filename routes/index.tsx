@@ -106,11 +106,21 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
 
   return (
     <>
-      <div class="mb-6">
-        <h1 class="text-2xl">dashboard</h1>
-        <p class="mt-1 max-w-2xl text-slate-600 dark:text-slate-400">
-          What's coming up, and what still needs a speaker or a date.
-        </p>
+      <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 class="text-2xl">dashboard</h1>
+          <p class="mt-1 max-w-2xl text-slate-600 dark:text-slate-400">
+            What's coming up, and what still needs a speaker or a date.
+          </p>
+        </div>
+        {!signedIn && (
+          <a
+            href="/login"
+            class="ui-btn ui-btn-primary self-start no-underline"
+          >
+            sign in to plan
+          </a>
+        )}
       </div>
 
       {signedIn && (

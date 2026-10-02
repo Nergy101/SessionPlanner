@@ -11,9 +11,6 @@
  */
 import { Migrator } from "@kysely/kysely/migration";
 import * as path from "@std/path";
-import { createDb, isDefaultDb } from "@/db/db.ts";
-import { migrations } from "@/db/migrations/index.ts";
-import { seedDemoData } from "../fixtures.ts";
 
 const PORT = Number(Deno.env.get("E2E_PORT") ?? 8787);
 const SEED = Deno.args.includes("--seed");
@@ -21,6 +18,18 @@ const SPEC = path.join(import.meta.dirname!, "spec.mjs");
 
 const tmpDir = await Deno.makeTempDir({ prefix: "sp-e2e-" });
 const dbPath = path.join(tmpDir, "e2e.db");
+
+// Set the isolated path before importing modules with the app-wide DB singleton.
+// The seed helpers use those services, so a static import would bind them to the
+// real default database before the throwaway path was known.
+Deno.env.set("DB_PATH", dbPath);
+const [{ createDb, isDefaultDb }, { migrations }, { seedDemoData }] =
+  await Promise
+    .all([
+      import("@/db/db.ts"),
+      import("@/db/migrations/index.ts"),
+      import("../fixtures.ts"),
+    ]);
 
 // Belt and braces: refuse to run if anything has pointed us at the real database.
 if (isDefaultDb(dbPath)) {
@@ -87,6 +96,7 @@ try {
       ...Deno.env.toObject(),
       E2E_BASE: base,
       E2E_PASSWORD: "e2e-password",
+      E2E_SEEDED: SEED ? "1" : "0",
       E2E_OUT: tmpDir,
       // Playwright is not a dependency of this project; the spec resolves it from here.
       PLAYWRIGHT_BASE: Deno.env.get("PLAYWRIGHT_BASE") ??
@@ -102,7 +112,7 @@ try {
   server.kill("SIGTERM");
   await server.status.catch(() => {});
   // Keep the directory when something failed, so the screenshots survive.
-  if (code === 0) {
+  if (code === 0 && Deno.env.get("E2E_KEEP") !== "1") {
     await Deno.remove(tmpDir, { recursive: true }).catch(() => {});
   }
 }

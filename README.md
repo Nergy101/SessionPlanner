@@ -96,9 +96,10 @@ _needs a speaker_ (find a person).
 
 ## Gamification
 
-There is one public page, `/standings`, deliberately outside the login:
-gamification needs an audience, and the rest of this app is a private
-organiser's tool. It is read-only — nothing on it can change anything.
+`/standings` is read-only, but requires the organiser password like the other
+planning views. Visitors without the password can only read the main dashboard;
+its forms and links into private pages are omitted, and all changes remain
+gated.
 
 **Nothing is stored as a score.** XP, the leaderboard, seasons, the trophy,
 radar coverage and the roulette pool are all recomputed from subjects, sessions
@@ -282,7 +283,7 @@ db/
 services/                  subjects (owns the ladder), sessions, people
   scoring.ts               XP, leaderboard, seasons, radar, roulette — all derived
 routes/                    SSR pages and their POST handlers
-  standings.tsx            the public scoreboard (no login)
+  standings.tsx            the organiser's read-only scoreboard
 islands/                   the few interactive pieces
 components/                presentational, server-rendered
 assets/styles.css          design tokens + component vocabulary
