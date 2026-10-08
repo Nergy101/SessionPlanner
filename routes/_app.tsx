@@ -3,7 +3,6 @@ import type { State } from "@/utils.ts";
 import { asset } from "fresh/runtime";
 import ThemeToggle from "@/islands/ThemeToggle.tsx";
 import StraatToggle from "@/islands/StraatToggle.tsx";
-import StroopwafelEgg from "@/islands/StroopwafelEgg.tsx";
 
 export default function App(
   { Component, url, state }: PageProps<unknown, State>,
@@ -149,9 +148,6 @@ export default function App(
                 </details>
 
                 <div class="flex shrink-0 items-center gap-1">
-                  <span class="hidden lg:inline-flex">
-                    <StroopwafelEgg />
-                  </span>
                   <span class="hidden lg:inline-flex">
                     <StraatToggle />
                   </span>
