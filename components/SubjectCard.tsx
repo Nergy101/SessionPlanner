@@ -1,6 +1,8 @@
 import type { ComponentChildren } from "preact";
-import type { Subject } from "@/services/subjects.ts";
+import { linkLabel, type Subject } from "@/services/subjects.ts";
 import { StatusBadge } from "./StatusBadge.tsx";
+
+const LINK_PREVIEW = 3;
 
 /**
  * `children` render at the bottom of the card, for per-view actions. `linked`
@@ -47,13 +49,28 @@ export function SubjectCard(
             </div>
           )
           : <span class="ui-badge ui-badge-danger">needs a speaker</span>}
-
-        {subject.links.length > 0 && (
-          <span class="ui-chip">
-            {subject.links.length} link{subject.links.length === 1 ? "" : "s"}
-          </span>
-        )}
       </div>
+
+      {subject.links.length > 0 && (
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          {subject.links.slice(0, LINK_PREVIEW).map((l) => (
+            <a
+              key={l.id}
+              href={l.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="ui-chip"
+            >
+              {linkLabel(l)} ↗
+            </a>
+          ))}
+          {subject.links.length > LINK_PREVIEW && (
+            <span class="ui-chip">
+              +{subject.links.length - LINK_PREVIEW} more
+            </span>
+          )}
+        </div>
+      )}
 
       {children}
     </article>
