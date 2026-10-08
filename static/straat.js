@@ -30,6 +30,7 @@
     "sessions": "fissa's",
     "people": "matties",
     "standings": "wie is de baas",
+    "notes": "kladblok",
 
     // ---- statuses & their meaning ----
     "idea": "plannetje",

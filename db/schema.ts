@@ -143,6 +143,14 @@ export interface SubjectTagTable {
   tag: string;
 }
 
+export interface NoteTable {
+  id: Generated<number>;
+  /** Free text, as typed. Line breaks are kept. */
+  body: string;
+  created_at: Generated<string>;
+  updated_at: Generated<string>;
+}
+
 export interface Database {
   people: PersonTable;
   subjects: SubjectTable;
@@ -150,7 +158,10 @@ export interface Database {
   sessions: SessionTable;
   subject_people: SubjectPersonTable;
   subject_tags: SubjectTagTable;
+  notes: NoteTable;
 }
+
+export type Note = Selectable<NoteTable>;
 
 export type Person = Selectable<PersonTable>;
 export type NewPerson = Insertable<PersonTable>;

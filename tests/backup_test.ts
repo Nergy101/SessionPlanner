@@ -16,6 +16,7 @@ const { error } = await migrator.migrateToLatest();
 if (error) throw error;
 
 Deno.test("data export can restore the complete database", async () => {
+  await db.deleteFrom("notes").execute();
   await db.deleteFrom("subject_tags").execute();
   await db.deleteFrom("subject_people").execute();
   await db.deleteFrom("subject_links").execute();
@@ -60,6 +61,12 @@ Deno.test("data export can restore the complete database", async () => {
   await db.insertInto("subject_tags").values({
     subject_id: 9,
     tag: "cloud",
+  }).execute();
+  await db.insertInto("notes").values({
+    id: 11,
+    body: "Line one\nline two",
+    created_at: "2026-01-05 10:00:00",
+    updated_at: "2026-01-06 10:00:00",
   }).execute();
 
   const backup = await exportData();

@@ -1,6 +1,7 @@
 import type { Migration } from "@kysely/kysely/migration";
 import * as m001 from "./001_initial_schema.ts";
 import * as m002 from "./002_gamification.ts";
+import * as m003 from "./003_notes.ts";
 
 /**
  * The migration set, explicitly listed.
@@ -17,4 +18,5 @@ import * as m002 from "./002_gamification.ts";
 export const migrations: Record<string, Migration> = {
   "001_initial_schema": m001,
   "002_gamification": m002,
+  "003_notes": m003,
 };

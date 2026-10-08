@@ -1,4 +1,5 @@
 import type {
+  Note,
   Person,
   SessionRow,
   SubjectLink,
@@ -6,7 +7,7 @@ import type {
 } from "@/db/schema.ts";
 import { db } from "@/db/db.ts";
 
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 
 export interface BackupTables {
   people: Person[];
@@ -15,6 +16,7 @@ export interface BackupTables {
   subject_links: SubjectLink[];
   subject_people: SubjectPerson[];
   subject_tags: SubjectTag[];
+  notes: Note[];
 }
 
 export interface Backup {
@@ -41,6 +43,7 @@ export async function exportData(): Promise<Backup> {
     subject_links,
     subject_people,
     subject_tags,
+    notes,
   ] = await Promise.all([
     db.selectFrom("people").selectAll().orderBy("id").execute(),
     db.selectFrom("sessions").selectAll().orderBy("id").execute(),
@@ -52,6 +55,7 @@ export async function exportData(): Promise<Backup> {
     db.selectFrom("subject_tags").selectAll().orderBy("subject_id").orderBy(
       "tag",
     ).execute(),
+    db.selectFrom("notes").selectAll().orderBy("id").execute(),
   ]);
 
   return {
@@ -64,6 +68,7 @@ export async function exportData(): Promise<Backup> {
       subject_links,
       subject_people,
       subject_tags,
+      notes,
     },
   };
 }
@@ -103,6 +108,7 @@ function validateRows(backup: unknown): asserts backup is Backup {
     "subject_links",
     "subject_people",
     "subject_tags",
+    "notes",
   ];
   if (!arrays.every((name) => Array.isArray(tables[name]))) {
     throw new Error("Invalid backup tables");
@@ -165,6 +171,13 @@ function validateRows(backup: unknown): asserts backup is Backup {
       !isInteger(row.subject_id) || typeof row.tag !== "string"
     ) throw new Error("Invalid subject_tags row");
   }
+  for (const row of tables.notes as unknown[]) {
+    if (
+      !hasKeys(row, ["id", "body", "created_at", "updated_at"]) ||
+      !isInteger(row.id) || typeof row.body !== "string" ||
+      typeof row.created_at !== "string" || typeof row.updated_at !== "string"
+    ) throw new Error("Invalid notes row");
+  }
 }
 
 export async function importData(value: unknown): Promise<void> {
@@ -172,6 +185,7 @@ export async function importData(value: unknown): Promise<void> {
   const { tables } = value;
 
   await db.transaction().execute(async (trx) => {
+    await trx.deleteFrom("notes").execute();
     await trx.deleteFrom("subject_people").execute();
     await trx.deleteFrom("subject_tags").execute();
     await trx.deleteFrom("subject_links").execute();
@@ -199,6 +213,9 @@ export async function importData(value: unknown): Promise<void> {
     if (tables.subject_tags.length) {
       await trx.insertInto("subject_tags").values(tables.subject_tags)
         .execute();
+    }
+    if (tables.notes.length) {
+      await trx.insertInto("notes").values(tables.notes).execute();
     }
   });
 }

@@ -766,7 +766,14 @@ await shot("subjects-filtered");
   });
 
   for (
-    const path of ["/subjects", "/sessions", "/people", "/data", "/standings"]
+    const path of [
+      "/subjects",
+      "/sessions",
+      "/people",
+      "/data",
+      "/standings",
+      "/notes",
+    ]
   ) {
     await anon.goto(`${BASE}${path}`);
     await anon.waitForLoadState("networkidle");
@@ -820,7 +827,7 @@ await shot("subjects-filtered");
   await settle();
   check(
     "standings: signed-in organiser sees all navigation sections",
-    (await page.locator('nav[aria-label="Sections"]:visible a').count()) === 6,
+    (await page.locator('nav[aria-label="Sections"]:visible a').count()) === 7,
     `${await page.locator('nav[aria-label="Sections"]:visible a')
       .count()} visible links`,
   );
@@ -1007,6 +1014,7 @@ const responsivePaths = [
   "/people",
   "/data",
   "/standings",
+  "/notes",
 ];
 for (const width of [320, 360, 390, 768, 900, 1023, 1024, 1280]) {
   await page.setViewportSize({ width, height: 844 });
@@ -1044,7 +1052,7 @@ for (const width of [320, 360, 390, 768, 900, 1023, 1024, 1280]) {
           !(await page.locator('nav[aria-label="Sections"]:visible a').count())
         : !(await page.locator("header details").isVisible()) &&
           (await page.locator('nav[aria-label="Sections"]:visible a')
-              .count()) === 6,
+              .count()) === 7,
     );
 
     if (width >= 1024 && path === "/") {
@@ -1083,7 +1091,7 @@ for (const width of [320, 360, 390, 768, 900, 1023, 1024, 1280]) {
       await page.locator("header details summary").click();
       check(
         "mobile: menu opens with all sections reachable",
-        await page.locator("header details[open] nav a").count() === 6 &&
+        await page.locator("header details[open] nav a").count() === 7 &&
           await page.locator("header details nav").isVisible(),
       );
     }

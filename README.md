@@ -239,6 +239,8 @@ every existing session.
   expects to sit behind a reverse proxy that terminates TLS.
 - No user table, no registration, no reset flow. Rotating the password is
   editing `.env` and restarting.
+- `/notes` is a private scratch page. Like every page except the public
+  dashboard, it redirects to `/login` without the cookie.
 
 ## Data and backups
 
@@ -246,6 +248,10 @@ Everything is one SQLite file, `data/session-planner.db` (override with
 `DB_PATH`). The signed-in **data** page also provides a portable JSON export and
 import. An import replaces all current application data in one transaction, so
 export the current instance first if you may need to undo it.
+
+The export includes the free-form notes from `/notes`. Exports are format
+version 2, so a JSON file from before notes existed will not import; export
+again from the running instance first.
 
 For a direct filesystem backup, copying the SQLite file is still possible when
 the app is stopped:

@@ -17,6 +17,7 @@ export default function App(
     { href: "/people", label: "people" },
     { href: "/data", label: "data" },
     { href: "/standings", label: "standings" },
+    { href: "/notes", label: "notes" },
   ];
 
   const active = (href: string) =>
