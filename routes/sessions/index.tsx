@@ -12,6 +12,7 @@ import NewSession from "@/islands/NewSession.tsx";
 import {
   createSubject,
   findSubjectByTitle,
+  linkLabel,
   listSchedulable,
   setSubjectPeople,
   setSubjectSession,
@@ -120,6 +121,21 @@ export default define.page<typeof handler>(function Sessions({ data }) {
               <a key={s.id} href={`/subjects/${s.id}`} class="ui-chip">
                 <StatusBadge status={s.status} />
                 {s.title}
+              </a>
+            ))}
+          </div>
+        )}
+        {session.links.length > 0 && (
+          <div class="mt-1.5 flex flex-wrap gap-1.5">
+            {session.links.map((l) => (
+              <a
+                key={l.id}
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="ui-chip"
+              >
+                {linkLabel(l)} ↗
               </a>
             ))}
           </div>

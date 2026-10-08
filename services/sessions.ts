@@ -8,7 +8,12 @@ export interface Session {
   date: string;
   notes: string | null;
   subjects: Subject[];
+  /** The first few links across this session's subjects, for the card preview. */
+  links: Subject["links"];
 }
+
+/** Session cards show at most this many links; each subject chip still leads to the rest. */
+const PREVIEW_LINKS = 3;
 
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -34,12 +39,16 @@ async function hydrate(
     bySession.set(s.sessionId, list);
   }
 
-  return rows.map((r) => ({
-    id: r.id,
-    date: r.date,
-    notes: r.notes,
-    subjects: bySession.get(r.id) ?? [],
-  }));
+  return rows.map((r) => {
+    const subjects = bySession.get(r.id) ?? [];
+    return {
+      id: r.id,
+      date: r.date,
+      notes: r.notes,
+      subjects,
+      links: subjects.flatMap((s) => s.links).slice(0, PREVIEW_LINKS),
+    };
+  });
 }
 
 export async function listSessions(): Promise<Session[]> {
