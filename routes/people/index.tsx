@@ -5,6 +5,7 @@ import {
   deletePerson,
   listPeople,
   mergePeople,
+  normalizeName,
   renamePerson,
 } from "@/services/people.ts";
 import { listSubjects } from "@/services/subjects.ts";
@@ -17,7 +18,7 @@ export const handler = define.handlers({
   async GET(ctx) {
     const [people, subjects] = await Promise.all([
       listPeople(),
-      listSubjects({ includeArchived: true }),
+      listSubjects(),
     ]);
 
     // One pass, rather than a query per person.
@@ -26,9 +27,7 @@ export const handler = define.handlers({
         s.people.some((p) => p.id === person.id)
       );
       const dates = theirs
-        .filter((s) =>
-          (s.status === "presented" || s.status === "archived") && s.sessionDate
-        )
+        .filter((s) => s.stage === "presented" && s.sessionDate)
         .map((s) => s.sessionDate!)
         .sort();
 
@@ -37,14 +36,27 @@ export const handler = define.handlers({
         name: person.name,
         subjects: theirs
           .slice()
-          .sort((a, b) => a.status.localeCompare(b.status))
-          .map((s) => ({ id: s.id, title: s.title, status: s.status })),
+          .sort((a, b) => a.stage.localeCompare(b.stage))
+          .map((s) => ({ id: s.id, title: s.title, stage: s.stage })),
         lastPresented: dates.length ? dates[dates.length - 1] : null,
       };
     });
 
+    // Only names that match exactly once case and spacing are ignored. Anything
+    // looser is left to a human, so a merge is never suggested by guesswork.
+    const byKey = new Map<string, { id: number; name: string }[]>();
+    for (const row of rows) {
+      const key = normalizeName(row.name).toLowerCase();
+      byKey.set(key, [...(byKey.get(key) ?? []), {
+        id: row.id,
+        name: row.name,
+      }]);
+    }
+    const duplicates = [...byKey.values()].filter((group) => group.length > 1);
+
     return page({
       rows,
+      duplicates,
       added: ctx.url.searchParams.get("added"),
       already: ctx.url.searchParams.has("already"),
     });
@@ -88,13 +100,13 @@ export const handler = define.handlers({
 });
 
 export default define.page<typeof handler>(function People({ data }) {
-  const { rows, added, already } = data;
+  const { rows, duplicates, added, already } = data;
 
   return (
     <>
       <div class="mb-6">
-        <h1 class="text-2xl">people</h1>
-        <p class="mt-1 max-w-2xl text-slate-600 dark:text-slate-400">
+        <h1 class="text-3xl tracking-tight">people</h1>
+        <p class="mt-1 max-w-2xl text-muted">
           Everyone who can present. Add colleagues up front so they're one click
           away when you assign a topic — or let them appear as you type names
           onto subjects.
@@ -113,12 +125,29 @@ export default define.page<typeof handler>(function People({ data }) {
         {added && (
           <p class="ui-hint mt-2">
             {already ? "already had " : "added "}
-            <strong class="text-slate-900 dark:text-slate-100">{added}</strong>
-            {" "}
+            <strong class="text-text">{added}</strong>{" "}
             — keep typing to add another.
           </p>
         )}
       </div>
+
+      {duplicates.length > 0 && (
+        <aside class="mb-6 border-2 border-line bg-careful p-4 text-[#111]">
+          <h2 class="text-[#111]">possible duplicates</h2>
+          <ul class="mt-2 flex flex-col gap-1">
+            {duplicates.map((group) => (
+              <li key={group.map((g) => g.id).join("-")}>
+                {group.map((g) =>
+                  g.name
+                ).join(" · ")}
+              </li>
+            ))}
+          </ul>
+          <p class="mt-2 text-sm">
+            Merge one into the other from its card below.
+          </p>
+        </aside>
+      )}
 
       {rows.length === 0
         ? (
@@ -128,114 +157,78 @@ export default define.page<typeof handler>(function People({ data }) {
           </div>
         )
         : (
-          <div
-            class="ui-table-wrap overflow-x-auto"
-            role="region"
-            tabindex={0}
-            aria-label="People table; scroll horizontally to see all columns"
-          >
-            <p class="ui-hint block px-3 py-2 lg:hidden">
-              Swipe horizontally to see all columns →
-            </p>
-            <table class="w-full border-collapse">
-              <thead>
-                <tr>
-                  <th class="ui-th w-56">Name</th>
-                  <th class="ui-th">Subjects</th>
-                  <th class="ui-th w-32">Last presented</th>
-                  <th class="ui-th w-56"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    class="hover:bg-slate-50 dark:hover:bg-slate-800/40"
-                  >
-                    <td class="ui-td">
-                      <form method="post">
-                        <input type="hidden" name="intent" value="rename" />
-                        <input type="hidden" name="id" value={row.id} />
-                        <InlineText
-                          name="name"
-                          value={row.name}
-                          ariaLabel="Name"
-                        />
-                      </form>
-                    </td>
+          <ul class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {rows.map((row) => (
+              <li key={row.id} class="ui-card">
+                <form method="post">
+                  <input type="hidden" name="intent" value="rename" />
+                  <input type="hidden" name="id" value={row.id} />
+                  <InlineText name="name" value={row.name} ariaLabel="Name" />
+                </form>
 
-                    <td class="ui-td">
-                      {row.subjects.length
-                        ? (
-                          <div class="flex flex-wrap gap-1">
-                            {row.subjects.map((s) => (
-                              <a
-                                key={s.id}
-                                href={`/subjects/${s.id}`}
-                                class="ui-chip"
-                              >
-                                <StatusBadge status={s.status} />
-                                {s.title}
-                              </a>
-                            ))}
-                          </div>
-                        )
-                        : <span class="ui-hint">—</span>}
-                    </td>
+                <p class="ui-hint">
+                  {row.subjects.length}{" "}
+                  subject{row.subjects.length === 1 ? "" : "s"}
+                  {" · last presented "}
+                  {row.lastPresented
+                    ? new Date(`${row.lastPresented}T00:00:00`)
+                      .toLocaleDateString(
+                        "en-GB",
+                        { month: "short", year: "numeric" },
+                      )
+                    : "never"}
+                </p>
 
-                    <td class="ui-td ui-hint">
-                      {row.lastPresented
-                        ? new Date(`${row.lastPresented}T00:00:00`)
-                          .toLocaleDateString(
-                            "en-GB",
-                            { month: "short", year: "numeric" },
-                          )
-                        : "never"}
-                    </td>
+                {row.subjects.length > 0 && (
+                  <div class="flex flex-wrap gap-1">
+                    {row.subjects.map((s) => (
+                      <a key={s.id} href={`/subjects/${s.id}`} class="ui-chip">
+                        <StatusBadge stage={s.stage} />
+                        {s.title}
+                      </a>
+                    ))}
+                  </div>
+                )}
 
-                    <td class="ui-td">
-                      <div class="flex flex-wrap items-center gap-2">
-                        {rows.length > 1 && (
-                          <form method="post">
-                            <input type="hidden" name="intent" value="merge" />
-                            <input type="hidden" name="id" value={row.id} />
-                            <AutoSubmitSelect
-                              name="target"
-                              value=""
-                              ariaLabel={`Merge ${row.name} into someone else`}
-                              class="ui-select w-auto min-w-[9rem] text-[0.7rem]"
-                              options={[
-                                { value: "", label: "merge into…" },
-                                ...rows
-                                  .filter((r) => r.id !== row.id)
-                                  .map((r) => ({
-                                    value: String(r.id),
-                                    label: r.name,
-                                  })),
-                              ]}
-                            />
-                          </form>
-                        )}
+                <div class="mt-auto flex flex-wrap items-center gap-2 border-t border-dashed border-line pt-2">
+                  {rows.length > 1 && (
+                    <form method="post">
+                      <input type="hidden" name="intent" value="merge" />
+                      <input type="hidden" name="id" value={row.id} />
+                      <AutoSubmitSelect
+                        name="target"
+                        value=""
+                        ariaLabel={`Merge ${row.name} into someone else`}
+                        class="ui-select w-auto min-w-[9rem] text-[0.8rem]"
+                        options={[
+                          { value: "", label: "merge into…" },
+                          ...rows
+                            .filter((r) => r.id !== row.id)
+                            .map((r) => ({
+                              value: String(r.id),
+                              label: r.name,
+                            })),
+                        ]}
+                      />
+                    </form>
+                  )}
 
-                        {row.subjects.length === 0 && (
-                          <form method="post">
-                            <input type="hidden" name="intent" value="delete" />
-                            <input type="hidden" name="id" value={row.id} />
-                            <button
-                              type="submit"
-                              class="ui-btn ui-btn-sm ui-btn-ghost ui-btn-danger"
-                            >
-                              delete
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  {row.subjects.length === 0 && (
+                    <form method="post">
+                      <input type="hidden" name="intent" value="delete" />
+                      <input type="hidden" name="id" value={row.id} />
+                      <button
+                        type="submit"
+                        class="ui-btn ui-btn-sm ui-btn-danger"
+                      >
+                        delete
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
 
       {rows.length > 0 && (

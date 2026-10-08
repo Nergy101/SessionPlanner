@@ -45,7 +45,7 @@ export function SpeakerSelect(props: {
             ).join(", ")
           })`
           : `Add a speaker to ${props.subjectTitle}`}
-        class="flex flex-wrap items-center gap-1 rounded-md border border-dashed border-transparent px-1 py-0.5 text-left hover:border-slate-300 dark:hover:border-slate-600"
+        class="flex flex-wrap items-center gap-1 border-2 border-dashed border-transparent px-1 py-0.5 text-left hover:border-line"
       >
         {props.selected.length
           ? props.selected.map((p) => (
@@ -71,14 +71,14 @@ export function SpeakerSelect(props: {
               {props.everyone.map((p) => (
                 <label
                   key={p.id}
-                  class="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 font-mono text-[0.8rem] hover:bg-slate-100 dark:hover:bg-slate-800"
+                  class="flex cursor-pointer items-center gap-2 px-1 py-1 text-[0.85rem] hover:bg-surface-2"
                 >
                   <input
                     type="checkbox"
                     name="people"
                     value={p.name}
                     checked={chosen.has(p.name.toLowerCase())}
-                    class="accent-brand"
+                    class="accent-primary"
                   />
                   {p.name}
                 </label>
@@ -86,7 +86,7 @@ export function SpeakerSelect(props: {
             </div>
           )
           : (
-            <p class="mb-3 text-[0.78rem] text-slate-600 dark:text-slate-400">
+            <p class="mb-3 text-sm text-muted">
               Nobody on the list yet — type a name below, or add people on{" "}
               <a href="/people">the people page</a>.
             </p>

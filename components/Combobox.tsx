@@ -118,7 +118,7 @@ export function Combobox(props: {
         <ul
           id={`${props.id}-listbox`}
           role="listbox"
-          class="absolute inset-x-0 top-full z-40 mt-0.5 max-h-56 overflow-y-auto rounded-md border border-dashed border-slate-300 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-900"
+          class="absolute inset-x-0 top-full z-40 mt-0.5 max-h-56 overflow-y-auto border-2 border-line bg-surface shadow-[var(--shadow-md)]"
         >
           {rows.map((row, i) => (
             <li
@@ -131,10 +131,8 @@ export function Combobox(props: {
                 choose(row);
               }}
               onMouseEnter={() => highlight.value = i}
-              class={`flex cursor-pointer items-center justify-between gap-3 border-t border-dashed border-slate-200 px-2.5 py-1.5 font-mono text-[0.78rem] first:border-t-0 dark:border-slate-700 ${
-                i === highlight.value
-                  ? "bg-brand/15 text-brand"
-                  : "text-slate-700 dark:text-slate-300"
+              class={`flex cursor-pointer items-center justify-between gap-3 border-t border-dashed border-line px-2.5 py-1.5 text-[0.85rem] first:border-t-0 ${
+                i === highlight.value ? "bg-primary text-[#111]" : "text-text"
               }`}
             >
               {row.isNew

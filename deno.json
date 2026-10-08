@@ -11,8 +11,7 @@
     "test": "deno test -A",
     "check": "deno fmt --check . && deno lint . && deno check",
     "update": "deno run -A -r jsr:@fresh/update .",
-    "demo": "DB_PATH=$(mktemp -d)/demo.db sh -c \"deno run -A tests/seed_temp.ts && deno task dev\"",
-    "e2e": "deno run -A tests/e2e/run.ts"
+    "demo": "DB_PATH=$(mktemp -d)/demo.db sh -c \"deno run -A tests/seed_temp.ts && deno task dev\""
   },
   "lint": {
     "rules": {

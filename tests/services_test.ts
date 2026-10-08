@@ -2,11 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 
 /**
  * Integration tests against a real SQLite file, migrated with the app's own
- * migrations — so the NOCASE collation and ON DELETE SET NULL behaviour under test
- * are the ones that actually ship.
- *
- * DB_PATH has to be set before importing db.ts, which opens its connection at module
- * load, so these use a dynamic import after setting it.
+ * migrations, so the SQL the app runs is the SQL under test.
  */
 const dbPath = await Deno.makeTempFile({ suffix: ".db" });
 Deno.env.set("DB_PATH", dbPath);
@@ -27,6 +23,11 @@ const people = await import("@/services/people.ts");
 const sessions = await import("@/services/sessions.ts");
 type SortKey = import("@/services/subjects.ts").SortKey;
 type SortDir = import("@/services/subjects.ts").SortDir;
+type Stage = import("@/services/subjects.ts").Stage;
+
+/** Far enough from today that the test never drifts across the boundary. */
+const FUTURE = "2099-01-01";
+const PAST = "2000-01-01";
 
 /** Empty every table so each test starts from a known state. */
 async function reset() {
@@ -44,73 +45,77 @@ const test = (name: string, fn: () => Promise<void>) =>
   });
 
 // ---------------------------------------------------------------------------
-// The ladder, end to end through the database
+// Stage, derived from speakers and the session date
 // ---------------------------------------------------------------------------
 
 test("a new subject starts as an idea", async () => {
   const id = await subjects.createSubject("Testcontainers in CI");
-  assertEquals((await subjects.getSubject(id))!.status, "idea");
+  assertEquals((await subjects.getSubject(id))!.stage, "idea");
 });
 
-test("the first speaker promotes idea to assigned", async () => {
+test("the first speaker makes it a speaker topic", async () => {
   const id = await subjects.createSubject("Testcontainers in CI");
   await subjects.setSubjectPeople(id, ["Jan de Vries"]);
-  assertEquals((await subjects.getSubject(id))!.status, "assigned");
+  assertEquals((await subjects.getSubject(id))!.stage, "speaker");
 });
 
-test("removing the last speaker demotes back to idea", async () => {
+test("removing the last speaker drops it back to idea", async () => {
   const id = await subjects.createSubject("Testcontainers in CI");
   await subjects.setSubjectPeople(id, ["Jan de Vries"]);
   await subjects.setSubjectPeople(id, []);
-  assertEquals((await subjects.getSubject(id))!.status, "idea");
+  assertEquals((await subjects.getSubject(id))!.stage, "idea");
 });
 
-test("assigning a session sets planned, unassigning falls back", async () => {
+test("a session in the future makes it planned, speaker or not", async () => {
+  const withSpeaker = await subjects.createSubject("Testcontainers in CI");
+  const without = await subjects.createSubject("OpenTelemetry end to end");
+  await subjects.setSubjectPeople(withSpeaker, ["Jan de Vries"]);
+  const sessionId = await sessions.createSession(FUTURE);
+
+  await subjects.setSubjectSession(withSpeaker, sessionId);
+  await subjects.setSubjectSession(without, sessionId);
+
+  assertEquals((await subjects.getSubject(withSpeaker))!.stage, "planned");
+  assertEquals((await subjects.getSubject(without))!.stage, "planned");
+});
+
+test("a session in the past makes it presented, and it stays so", async () => {
+  const id = await subjects.createSubject("Testcontainers in CI");
+  const sessionId = await sessions.createSession(PAST);
+  await subjects.setSubjectSession(id, sessionId);
+  assertEquals((await subjects.getSubject(id))!.stage, "presented");
+
+  await subjects.setSubjectPeople(id, ["Jan de Vries"]);
+  assertEquals((await subjects.getSubject(id))!.stage, "presented");
+});
+
+test("unscheduling falls back to speaker or idea", async () => {
   const id = await subjects.createSubject("Testcontainers in CI");
   await subjects.setSubjectPeople(id, ["Jan de Vries"]);
-  const sessionId = await sessions.createSession("2026-10-01");
-
+  const sessionId = await sessions.createSession(FUTURE);
   await subjects.setSubjectSession(id, sessionId);
-  assertEquals((await subjects.getSubject(id))!.status, "planned");
 
   await subjects.setSubjectSession(id, null);
-  assertEquals((await subjects.getSubject(id))!.status, "assigned");
+  assertEquals((await subjects.getSubject(id))!.stage, "speaker");
 });
 
-test("a subject with no speaker can still be planned", async () => {
-  const id = await subjects.createSubject("Testcontainers in CI");
-  const sessionId = await sessions.createSession("2026-10-01");
-  await subjects.setSubjectSession(id, sessionId);
+test("the stage filter returns only subjects at that stage", async () => {
+  const idea = await subjects.createSubject("Idea");
+  const speaker = await subjects.createSubject("Speaker");
+  const planned = await subjects.createSubject("Planned");
+  await subjects.setSubjectPeople(speaker, ["Jan de Vries"]);
+  await subjects.setSubjectPeople(planned, ["Sanne Bakker"]);
+  await subjects.setSubjectSession(
+    planned,
+    await sessions.createSession(FUTURE),
+  );
 
-  const s = (await subjects.getSubject(id))!;
-  assertEquals(s.status, "planned");
-  assertEquals(s.people.length, 0);
-});
+  const only = (stage: Stage) =>
+    subjects.listSubjects({ stage }).then((list) => list.map((s) => s.id));
 
-test("presented and archived survive every people and date change", async () => {
-  for (const sticky of ["presented", "archived"] as const) {
-    await reset();
-    const id = await subjects.createSubject("Testcontainers in CI");
-    await subjects.setSubjectPeople(id, ["Jan de Vries"]);
-    await subjects.setSubjectStatus(id, sticky);
-
-    const sessionId = await sessions.createSession("2026-10-01");
-    await subjects.setSubjectSession(id, sessionId);
-    await subjects.setSubjectPeople(id, []);
-    await subjects.setSubjectSession(id, null);
-
-    assertEquals((await subjects.getSubject(id))!.status, sticky);
-  }
-});
-
-test("leaving a sticky state hands control back to the ladder", async () => {
-  const id = await subjects.createSubject("Testcontainers in CI");
-  await subjects.setSubjectPeople(id, ["Jan de Vries"]);
-  await subjects.setSubjectStatus(id, "presented");
-
-  // Asking for idea on something that has a speaker gets assigned — the ladder wins.
-  await subjects.setSubjectStatus(id, "idea");
-  assertEquals((await subjects.getSubject(id))!.status, "assigned");
+  assertEquals(await only("idea"), [idea]);
+  assertEquals(await only("speaker"), [speaker]);
+  assertEquals(await only("planned"), [planned]);
 });
 
 // ---------------------------------------------------------------------------
@@ -188,7 +193,7 @@ test("deleting a session unschedules its subjects rather than deleting them", as
   const without = await subjects.createSubject("OpenTelemetry end to end");
   await subjects.setSubjectPeople(withSpeaker, ["Jan de Vries"]);
 
-  const sessionId = await sessions.createSession("2026-10-01");
+  const sessionId = await sessions.createSession(FUTURE);
   await subjects.setSubjectSession(withSpeaker, sessionId);
   await subjects.setSubjectSession(without, sessionId);
 
@@ -198,22 +203,8 @@ test("deleting a session unschedules its subjects rather than deleting them", as
   const b = (await subjects.getSubject(without))!;
   assertEquals(a.sessionId, null);
   assertEquals(b.sessionId, null);
-  assertEquals(a.status, "assigned"); // still has a speaker
-  assertEquals(b.status, "idea"); // does not
-});
-
-test("mark all presented only touches the planned ones", async () => {
-  const planned = await subjects.createSubject("Testcontainers in CI");
-  const archived = await subjects.createSubject("OpenTelemetry end to end");
-  const sessionId = await sessions.createSession("2026-10-01");
-
-  await subjects.setSubjectSession(planned, sessionId);
-  await subjects.setSubjectSession(archived, sessionId);
-  await subjects.setSubjectStatus(archived, "archived");
-
-  assertEquals(await sessions.markAllPresented(sessionId), 1);
-  assertEquals((await subjects.getSubject(planned))!.status, "presented");
-  assertEquals((await subjects.getSubject(archived))!.status, "archived");
+  assertEquals(a.stage, "speaker"); // still has a speaker
+  assertEquals(b.stage, "idea"); // does not
 });
 
 test("upcoming sessions are the soonest ones not in the past, in order", async () => {
@@ -241,63 +232,19 @@ test("upcoming sessions are the soonest ones not in the past, in order", async (
 // Queries
 // ---------------------------------------------------------------------------
 
-test("archived subjects stay out of the default list but are reachable", async () => {
-  const kept = await subjects.createSubject("Testcontainers in CI");
-  const archived = await subjects.createSubject("OpenTelemetry end to end");
-  await subjects.setSubjectStatus(archived, "archived");
-
-  const listed = await subjects.listSubjects();
-  assertEquals(listed.length, 1);
-  assertEquals(listed[0].id, kept);
-
-  const filtered = await subjects.listSubjects({ status: "archived" });
-  assertEquals(filtered.length, 1);
-  assertEquals(filtered[0].id, archived);
-});
-
-test("the schedulable pool puts assigned first and excludes the rest", async () => {
+test("the schedulable pool excludes subjects already on a session", async () => {
   const idea = await subjects.createSubject("Idea");
-  const assigned = await subjects.createSubject("Assigned");
-  const scheduled = await subjects.createSubject("Scheduled");
-  const archived = await subjects.createSubject("Archived");
-  const presented = await subjects.createSubject("Presented");
+  const speaker = await subjects.createSubject("Speaker");
+  const planned = await subjects.createSubject("Planned");
 
-  await subjects.setSubjectPeople(assigned, ["Jan de Vries"]);
-  const sessionId = await sessions.createSession("2026-10-01");
-  await subjects.setSubjectSession(scheduled, sessionId);
-  await subjects.setSubjectStatus(archived, "archived");
-  await subjects.setSubjectStatus(presented, "presented");
+  await subjects.setSubjectPeople(speaker, ["Jan de Vries"]);
+  await subjects.setSubjectSession(
+    planned,
+    await sessions.createSession(FUTURE),
+  );
 
   const pool = await subjects.listSchedulable();
-  assertEquals(pool.map((s) => s.id), [assigned, idea]);
-});
-
-test("the list is ordered planned, assigned, idea, presented, archived", async () => {
-  // Created in a deliberately different order from the one we expect back.
-  const idea = await subjects.createSubject("An idea");
-  const presented = await subjects.createSubject("Already presented");
-  const planned = await subjects.createSubject("On the calendar");
-  const archived = await subjects.createSubject("Shelved");
-  const assigned = await subjects.createSubject("Has a speaker");
-
-  await subjects.setSubjectPeople(assigned, ["Jan de Vries"]);
-  const sessionId = await sessions.createSession("2026-10-01");
-  await subjects.setSubjectSession(planned, sessionId);
-  await subjects.setSubjectStatus(presented, "presented");
-  await subjects.setSubjectStatus(archived, "archived");
-
-  const listed = await subjects.listSubjects({ includeArchived: true });
-  assertEquals(
-    listed.map((s) => s.status),
-    ["planned", "assigned", "idea", "presented", "archived"],
-  );
-  assertEquals(listed.map((s) => s.id), [
-    planned,
-    assigned,
-    idea,
-    presented,
-    archived,
-  ]);
+  assertEquals(pool.map((s) => s.id).sort(), [idea, speaker].sort());
 });
 
 test("sorting sinks missing values in both directions", async () => {
@@ -309,7 +256,6 @@ test("sorting sinks missing values in both directions", async () => {
   const c = await subjects.createSubject("gamma");
   await subjects.setSubjectPeople(a, ["Zoe"]);
   await subjects.setSubjectPeople(b, ["Anna"]);
-  await subjects.setSubjectBounty(c, 50);
 
   const list = await subjects.listSubjects();
   const ids = (key: SortKey, dir: SortDir) =>
@@ -320,8 +266,6 @@ test("sorting sinks missing values in both directions", async () => {
   assertEquals(ids("session", "asc"), [b, a, c]);
   assertEquals(ids("session", "desc"), [a, b, c]);
   assertEquals(ids("speakers", "desc"), [a, b, c]);
-  assertEquals(ids("bounty", "desc")[0], c);
-  assertEquals(ids("status", "asc")[0], c);
 });
 
 test("search matches the description as well as the title", async () => {

@@ -1,28 +1,80 @@
 @import "tailwindcss";
 
-/* Dark mode is a class on <html>, not a media query, so the toggle can win. */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Dark mode is a data attribute on <html>, set before first paint (see routes/_app.tsx). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /* ---------------------------------------------------------------------------
-   The sprintendo house style: dashed hairline borders, monospace for anything
-   structural, near-zero radii, a flat slate palette with one blue accent.
+   "Friendly brutal" tokens. Light values live in @theme; dark overrides below.
+   Hard offset shadows, no blur, one webfont for display text.
    --------------------------------------------------------------------------- */
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("/fonts/space-grotesk-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("/fonts/space-grotesk-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
-  --color-brand: #0067b8;
-  --color-brand-600: #0067b8;
-  --color-brand-700: #0058a0;
+  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
 
-  --radius-none: 0;
-  --radius-sm: 1px;
-  --radius-DEFAULT: 2px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 3px;
-  --radius-2xl: 3px;
-  --radius-3xl: 4px;
+  --color-bg: #fff8e7;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4ecd8;
+  --color-line: #111111;
+  --color-text: #111111;
+  --color-muted: #4d4a42;
 
-  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --color-primary: #ffd400;
+  --color-on-primary: #111111;
+  --color-next: #7fd8ff;
+  --color-careful: #ff6a45;
+  --color-danger-text: #b42a0a;
+  --color-ok-text: #13703a;
+
+  --color-stage-idea: oklch(0.62 0.13 75);
+  --color-stage-speaker: oklch(0.62 0.13 250);
+  --color-stage-planned: oklch(0.62 0.13 155);
+  --color-stage-presented: oklch(0.62 0.13 300);
+
+  --radius-pill: 99px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+[data-theme="dark"] {
+  --color-bg: #1a1916;
+  --color-surface: #24221e;
+  --color-surface-2: #2e2b26;
+  --color-line: #5f5a4e;
+  --color-text: #ece6d8;
+  --color-muted: #b5ad9c;
+  --color-primary: #e2c14a;
+  --color-next: #5aa9c9;
+  --color-danger-text: #ff8a6a;
+  --color-ok-text: #6fd39a;
+}
+
+/* Shadows and borders are one fixed width in both themes. */
+:root {
+  --border-w: 2px;
+  --shadow-sm: 2px 2px 0 var(--color-line);
+  --shadow-md: 3px 3px 0 var(--color-line);
+  --shadow-lg: 4px 4px 0 var(--color-line);
+  --shadow-xl: 6px 6px 0 var(--color-line);
+  --shadow-focus: 0 0 0 3px var(--color-primary);
 }
 
 @layer base {
@@ -32,30 +84,37 @@
   }
 
   body {
-    @apply bg-slate-100 text-slate-800 antialiased;
-    @apply dark:bg-slate-950 dark:text-slate-200;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
   }
 
   h1,
   h2,
   h3,
   h4 {
-    @apply font-mono font-bold tracking-tight text-slate-900
-      dark:text-slate-100;
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--color-text);
   }
 
   ::selection {
-    @apply bg-brand/20;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
   }
 
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand;
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
   }
 }
 
 /* ---------------------------------------------------------------------------
-   Component vocabulary. These are @apply compositions rather than one-off
-   utility soup, so every card, badge and input across the app stays identical.
+   Component vocabulary. Class names are stable across screens; the visual
+   language is the spec's: 2px outlines, hard shadows, yellow primary.
    --------------------------------------------------------------------------- */
 @layer components {
   .app-header {
@@ -92,255 +151,598 @@
     display: none;
   }
 
+  /* ---- app shell ---- */
+  .skip-link {
+    position: absolute;
+    left: 0.5rem;
+    top: 0.5rem;
+    z-index: 50;
+    transform: translateY(-200%);
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    padding: 0.4rem 0.8rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+
+  .skip-link:focus {
+    transform: none;
+  }
+
+  /* Logo: cyan square + yellow circle; hover/focus morphs into a stage and head. */
+  .sp-mark {
+    --s: 28px;
+    --b: max(1.5px, calc(var(--s) / 22));
+    --ln: #111111;
+    --c: #7fd8ff;
+    --y: #ffd400;
+    position: relative;
+    display: inline-block;
+    flex: none;
+    width: var(--s);
+    height: var(--s);
+  }
+
+  [data-theme="dark"] .sp-mark {
+    --ln: #5f5a4e;
+    --c: #5aa9c9;
+    --y: #e2c14a;
+  }
+
+  .sp-sq,
+  .sp-ci {
+    position: absolute;
+    box-sizing: border-box;
+    border: var(--b) solid var(--ln);
+  }
+
+  .sp-sq {
+    background: var(--c);
+    left: 0;
+    top: 0;
+    width: calc(var(--s) * 0.68);
+    height: calc(var(--s) * 0.68);
+    border-radius: calc(var(--s) * 0.15);
+    box-shadow: 0 0 0 var(--ln);
+  }
+
+  .sp-ci {
+    background: var(--y);
+    border-radius: 50%;
+    left: calc(var(--s) * 0.32);
+    top: calc(var(--s) * 0.32);
+    width: calc(var(--s) * 0.68);
+    height: calc(var(--s) * 0.68);
+    box-shadow: var(--b) var(--b) 0 var(--ln);
+  }
+
+  .sp-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--s, 28px) * 0.32);
+    text-decoration: none;
+    color: var(--color-text);
+  }
+
+  .sp-word {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  /* Shown only while a data-busy form is submitting (see static/busy.js). */
+  .sp-busy {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+  }
+
+  form[aria-busy="true"] .sp-busy {
+    display: inline-flex;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .sp-sq,
+    .sp-ci {
+      transition: left 320ms, top 320ms, width 320ms, height 320ms,
+        border-radius 320ms, box-shadow 320ms;
+      transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .sp-logo:hover .sp-sq,
+    .sp-logo:focus-visible .sp-sq {
+      top: calc(var(--s) * 0.64);
+      width: var(--s);
+      height: calc(var(--s) * 0.36);
+      border-radius: calc(var(--s) * 0.12);
+      box-shadow: var(--b) var(--b) 0 var(--ln);
+      transition-duration: 460ms;
+      transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .sp-logo:hover .sp-ci,
+    .sp-logo:focus-visible .sp-ci {
+      left: calc(var(--s) * 0.28);
+      top: calc(var(--s) * 0.14);
+      width: calc(var(--s) * 0.44);
+      height: calc(var(--s) * 0.44);
+      box-shadow: 0 0 0 var(--ln);
+      transition-duration: 460ms;
+      transition-delay: 70ms;
+      transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .sp-loading .sp-sq {
+      animation: sp-sq 2.4s cubic-bezier(0.6, 0, 0.2, 1) infinite;
+    }
+
+    .sp-loading .sp-ci {
+      animation: sp-ci 2.4s cubic-bezier(0.6, 0, 0.2, 1) infinite;
+    }
+  }
+
+  @keyframes sp-sq {
+    0%,
+    28%,
+    100% {
+      left: 0;
+      top: 0;
+      width: calc(var(--s) * 0.68);
+      height: calc(var(--s) * 0.68);
+      border-radius: calc(var(--s) * 0.15);
+      box-shadow: 0 0 0 var(--ln);
+    }
+    46%,
+    82% {
+      left: 0;
+      top: calc(var(--s) * 0.64);
+      width: var(--s);
+      height: calc(var(--s) * 0.36);
+      border-radius: calc(var(--s) * 0.12);
+      box-shadow: var(--b) var(--b) 0 var(--ln);
+    }
+  }
+
+  @keyframes sp-ci {
+    0%,
+    32%,
+    100% {
+      left: calc(var(--s) * 0.32);
+      top: calc(var(--s) * 0.32);
+      width: calc(var(--s) * 0.68);
+      height: calc(var(--s) * 0.68);
+      box-shadow: var(--b) var(--b) 0 var(--ln);
+    }
+    52% {
+      left: calc(var(--s) * 0.28);
+      top: calc(var(--s) * 0.06);
+      width: calc(var(--s) * 0.44);
+      height: calc(var(--s) * 0.44);
+      box-shadow: 0 0 0 var(--ln);
+    }
+    60% {
+      top: calc(var(--s) * 0.17);
+    }
+    66%,
+    82% {
+      left: calc(var(--s) * 0.28);
+      top: calc(var(--s) * 0.14);
+      width: calc(var(--s) * 0.44);
+      height: calc(var(--s) * 0.44);
+      box-shadow: 0 0 0 var(--ln);
+    }
+  }
+
+  .nav-link {
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+    border: var(--border-w) solid transparent;
+    border-radius: var(--radius-md);
+    padding: 0.2rem 0.75rem;
+    color: var(--color-text);
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 0.92rem;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .nav-link:hover {
+    border-color: var(--color-line);
+  }
+
+  .nav-link-active {
+    border-color: var(--color-line);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    font-weight: 700;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .nav-link-vertical {
+    min-height: 44px;
+  }
+
   /* ---- inputs ---- */
-  .ui-input {
-    @apply w-full rounded-md border border-dashed border-slate-300 bg-white px-3
-      py-2 font-mono text-sm text-slate-900 shadow-sm outline-none;
-    @apply focus:border-solid focus:border-brand focus:ring-2
-      focus:ring-brand/20;
-    @apply dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100
-      dark:placeholder:text-slate-500;
+  .ui-input,
+  .ui-textarea,
+  .ui-select {
+    width: 100%;
+    min-height: 44px;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0.55rem 0.8rem;
+    font: inherit;
+    font-size: 0.95rem;
+    outline: none;
+  }
+
+  .ui-input:focus,
+  .ui-textarea:focus,
+  .ui-select:focus {
+    box-shadow: var(--shadow-focus);
+  }
+
+  .ui-input::placeholder,
+  .ui-textarea::placeholder {
+    color: var(--color-muted);
   }
 
   .ui-textarea {
-    @apply w-full resize-y rounded-md border border-dashed border-slate-300
-      bg-white px-3 py-2 font-mono text-sm leading-relaxed text-slate-900
-      shadow-sm outline-none;
-    @apply focus:border-solid focus:border-brand focus:ring-2
-      focus:ring-brand/20;
-    @apply dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100
-      dark:placeholder:text-slate-500;
+    resize: vertical;
+    line-height: 1.5;
   }
 
   .ui-select {
-    @apply w-full cursor-pointer appearance-none rounded-md border border-dashed
-      border-slate-300 bg-white bg-no-repeat py-2 pl-3 pr-7 font-mono text-sm
-      text-slate-900 shadow-sm outline-none;
-    @apply focus:border-solid focus:border-brand focus:ring-2
-      focus:ring-brand/20;
-    @apply dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100;
-    background-image:
-      linear-gradient(45deg, transparent 50%, currentColor 50%),
+    cursor: pointer;
+    appearance: none;
+    padding-inline-end: 2rem;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
       linear-gradient(135deg, currentColor 50%, transparent 50%);
     background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%;
     background-size: 5px 5px, 5px 5px;
   }
 
-  /* An input that only reveals itself as editable on hover — for dense tables. */
+  /* Dense-table inputs: look like plain text until hovered or focused. */
   .ui-input-inline {
-    @apply w-full rounded-md border border-dashed border-transparent
-      bg-transparent px-2 py-1 font-mono text-sm text-slate-900 outline-none;
-    @apply hover:border-slate-300 hover:bg-slate-50;
-    @apply focus:border-solid focus:border-brand focus:bg-white focus:ring-2
-      focus:ring-brand/20;
-    @apply dark:text-slate-100 dark:hover:border-slate-600
-      dark:hover:bg-slate-800 dark:focus:bg-slate-800;
+    width: 100%;
+    border: var(--border-w) solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text);
+    padding: 0.3rem 0.5rem;
+    font: inherit;
+    outline: none;
+  }
+
+  .ui-input-inline:hover {
+    border-color: var(--color-line);
+    background: var(--color-surface);
+  }
+
+  .ui-input-inline:focus {
+    border-color: var(--color-line);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-focus);
   }
 
   .ui-label {
-    @apply mb-1 block font-mono text-[0.65rem] font-bold uppercase
-      tracking-widest text-slate-600 dark:text-slate-400;
+    display: block;
+    margin-bottom: 0.35rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--color-text);
   }
 
   .ui-label-hint {
-    @apply font-normal normal-case tracking-normal;
+    font-weight: 500;
+    color: var(--color-muted);
   }
 
   /* ---- buttons ---- */
   .ui-btn {
-    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap
-      rounded-md border border-dashed border-slate-300 bg-white px-3 py-2
-      font-mono text-xs font-semibold text-slate-900 shadow-sm transition;
-    @apply hover:border-brand hover:text-brand active:translate-y-px;
-    @apply disabled:cursor-not-allowed disabled:opacity-45
-      disabled:hover:border-slate-300 disabled:hover:text-slate-900
-      disabled:active:translate-y-0;
-    @apply dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100
-      dark:disabled:hover:border-slate-600 dark:disabled:hover:text-slate-100;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 44px;
+    white-space: nowrap;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0.5rem 1rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.9rem;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform 80ms ease, box-shadow 80ms ease;
+  }
+
+  .ui-btn:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .ui-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+  }
+
+  .ui-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    transform: none;
+    box-shadow: var(--shadow-sm);
   }
 
   .ui-btn-primary {
-    @apply border-solid border-brand bg-brand text-white;
-    @apply hover:border-brand-700 hover:bg-brand-700 hover:text-white;
-    @apply disabled:hover:border-brand disabled:hover:bg-brand
-      disabled:hover:text-white;
-    @apply dark:border-brand dark:bg-brand dark:text-white
-      dark:disabled:hover:border-brand dark:disabled:hover:text-white;
+    background: var(--color-primary);
+    color: var(--color-on-primary);
   }
 
   .ui-btn-ghost {
-    @apply border-transparent bg-transparent text-slate-600 shadow-none;
-    @apply hover:border-slate-300 hover:text-brand;
-    @apply dark:bg-transparent dark:text-slate-400 dark:hover:border-slate-600;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    color: var(--color-muted);
+  }
+
+  .ui-btn-ghost:hover {
+    border-color: var(--color-line);
+    box-shadow: none;
+    transform: none;
   }
 
   .ui-btn-danger {
-    @apply text-rose-600 hover:border-rose-500 hover:text-rose-600;
-    @apply dark:text-rose-400 dark:hover:border-rose-500
-      dark:hover:text-rose-400;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    color: var(--color-danger-text);
+  }
+
+  .ui-btn-danger:hover {
+    border-color: var(--color-careful);
+    box-shadow: none;
+    transform: none;
   }
 
   .ui-btn-danger-solid {
-    @apply border-solid border-rose-600 bg-rose-600 text-white;
-    @apply hover:border-rose-700 hover:bg-rose-700 hover:text-white;
-    @apply dark:border-rose-600 dark:bg-rose-600 dark:text-white
-      dark:hover:text-white;
+    background: var(--color-careful);
+    color: var(--color-on-primary);
   }
 
   .ui-btn-sm {
-    @apply px-2 py-1 text-[0.7rem];
+    min-height: 32px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.8rem;
   }
 
   .ui-icon-btn {
-    @apply inline-flex h-9 w-9 items-center justify-center rounded-md border
-      border-dashed border-transparent bg-transparent text-slate-600 transition;
-    @apply hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900;
-    @apply dark:text-slate-400 dark:hover:border-slate-600
-      dark:hover:bg-slate-800 dark:hover:text-slate-100;
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
   }
 
   /* ---- surfaces ---- */
   .ui-panel {
-    @apply rounded-lg border border-dashed border-slate-300 bg-white p-4
-      shadow-sm;
-    @apply dark:border-slate-600 dark:bg-slate-900;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-lg);
+    padding: 1.25rem;
   }
 
   .ui-card {
-    @apply flex flex-col gap-2 rounded-lg border border-dashed border-slate-300
-      bg-white p-3.5 shadow-sm transition;
-    @apply hover:-translate-y-0.5 hover:border-brand hover:shadow-md;
-    @apply dark:border-slate-600 dark:bg-slate-900 dark:hover:shadow-black/40;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-md);
+    padding: 0.9rem 1rem;
     /* A hovered card's transform makes it its own stacking context, which can paint
-       a later card over an earlier card's open dropdown — the pointer then flips
-       hover between the two and the menu flickers. Lifting the card being typed in
-       above its neighbours keeps its menu on top. */
-    @apply focus-within:relative focus-within:z-30;
+       a later card over an earlier card's open dropdown. Lifting the card being
+       typed in above its neighbours keeps its menu on top. */
+  }
+
+  .ui-card:focus-within {
+    position: relative;
+    z-index: 30;
   }
 
   .ui-empty {
-    @apply rounded-lg border border-dashed border-slate-300 bg-slate-50 p-7
-      text-center font-mono text-xs text-slate-600;
-    @apply dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400;
+    border: var(--border-w) dashed var(--color-line);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-2);
+    padding: 1.75rem;
+    text-align: center;
+    color: var(--color-muted);
+  }
+
+  /* ---- stage: four lanes, same lightness and chroma, hue varies ---- */
+  .stage-idea {
+    --stage: var(--color-stage-idea);
+  }
+  .stage-speaker {
+    --stage: var(--color-stage-speaker);
+  }
+  .stage-planned {
+    --stage: var(--color-stage-planned);
+  }
+  .stage-presented {
+    --stage: var(--color-stage-presented);
   }
 
   /* ---- badges and chips ---- */
   .ui-badge {
-    @apply inline-flex items-center whitespace-nowrap rounded-md px-1.5 py-0.5
-      font-mono text-[0.6rem] font-bold uppercase tracking-wider;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0.1rem 0.55rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.72rem;
+  }
+
+  .ui-badge-idea,
+  .ui-badge-speaker,
+  .ui-badge-planned,
+  .ui-badge-presented {
+    background: var(--stage);
+    color: #111111;
+  }
+
+  .ui-badge-idea {
+    --stage: var(--color-stage-idea);
+  }
+  .ui-badge-speaker {
+    --stage: var(--color-stage-speaker);
+  }
+  .ui-badge-planned {
+    --stage: var(--color-stage-planned);
+  }
+  .ui-badge-presented {
+    --stage: var(--color-stage-presented);
+  }
+
+  .ui-badge-danger {
+    background: var(--color-careful);
+    color: #111111;
   }
 
   .ui-chip {
-    @apply inline-flex items-center gap-1 rounded-md border border-dashed
-      border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[0.7rem]
-      text-slate-600 no-underline;
-    @apply dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    padding: 0.1rem 0.55rem;
+    font-size: 0.75rem;
+    text-decoration: none;
   }
 
   a.ui-chip:hover {
-    @apply border-brand text-brand;
+    background: var(--color-next);
+    color: #111111;
   }
 
   .ui-chip-person {
-    @apply border-transparent bg-violet-50 text-violet-700 dark:bg-violet-500/15
-      dark:text-violet-300;
+    background: var(--color-next);
+    color: #111111;
   }
 
   /* ---- table ---- */
   .ui-table-wrap {
-    @apply overflow-hidden rounded-lg border border-dashed border-slate-300
-      bg-white shadow-sm;
-    @apply dark:border-slate-600 dark:bg-slate-900;
+    overflow: hidden;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-md);
   }
 
   .ui-toolbar {
-    @apply flex flex-wrap items-center gap-2 border-b border-dashed
-      border-slate-300 bg-slate-50 p-2.5;
-    @apply dark:border-slate-600 dark:bg-slate-800/50;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: var(--border-w) dashed var(--color-line);
+    background: var(--color-surface-2);
+    padding: 0.6rem 0.75rem;
   }
 
   .ui-th {
-    @apply border-b border-dashed border-slate-300 bg-slate-50 px-3 py-2
-      text-left font-mono text-[0.6rem] font-bold uppercase tracking-widest
-      text-slate-600;
-    @apply dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-400;
+    border-bottom: var(--border-w) solid var(--color-line);
+    background: var(--color-surface-2);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.72rem;
+    color: var(--color-muted);
   }
 
   .ui-td {
-    @apply border-b border-dashed border-slate-200 px-3 py-1.5 align-middle
-      dark:border-slate-700/70;
+    border-bottom: 1px dashed var(--color-line);
+    padding: 0.4rem 0.75rem;
+    vertical-align: middle;
   }
 
-  /* ---- popover ----
-     Used by the speaker multi-select in the subjects table. `popover` renders in the
-     browser's top layer, which is the only way a panel inside a container with
-     overflow-x-auto can escape being clipped — and it opens with no JavaScript. */
+  /* ---- popover (speaker multi-select). `popover` renders in the top layer. ---- */
   .ui-popover {
-    /* m-auto is load-bearing: the UA stylesheet centres a popover with
-       `inset: 0; margin: auto`, and Tailwind's preflight resets margin to 0 on
-       every element — which parks the panel in the top-left corner instead. */
-    @apply m-auto w-80 max-w-[92vw] rounded-lg border border-dashed
-      border-slate-300 bg-white p-4 shadow-lg;
-    @apply dark:border-slate-500 dark:bg-slate-900;
+    /* m-auto: the UA centres a popover with `inset: 0; margin: auto`, and preflight
+       resets margin to 0, which would park the panel in the top-left corner. */
+    margin: auto;
+    width: 20rem;
+    max-width: 92vw;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-xl);
+    padding: 1rem;
   }
 
   /* ---- section furniture ---- */
   .ui-section-head {
-    @apply mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-1
-      border-b
-      border-dashed border-slate-300 pb-2 dark:border-slate-700;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    margin-bottom: 1rem;
+    border-bottom: var(--border-w) dashed var(--color-line);
+    padding-bottom: 0.5rem;
   }
 
   .ui-eyebrow {
-    @apply font-mono text-[0.65rem] font-bold uppercase tracking-widest
-      text-slate-600 dark:text-slate-400;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--color-muted);
   }
 
   .ui-hint {
-    @apply font-mono text-[0.7rem] text-slate-600 dark:text-slate-400;
+    font-size: 0.8rem;
+    color: var(--color-muted);
   }
 }
 
-/* ---------------------------------------------------------------------------
-   Status badge colours — one per rung, so the ladder reads at a glance.
-   --------------------------------------------------------------------------- */
-@layer components {
-  .ui-badge-idea {
-    @apply bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300;
-  }
-  .ui-badge-assigned {
-    @apply bg-violet-100 text-violet-700 dark:bg-violet-500/15
-      dark:text-violet-300;
-  }
-  .ui-badge-planned {
-    @apply bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300;
-  }
-  .ui-badge-presented {
-    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15
-      dark:text-emerald-300;
-  }
-  .ui-badge-archived {
-    @apply border border-dashed border-slate-300 text-slate-600
-      dark:border-slate-600 dark:text-slate-400;
-  }
-  .ui-badge-danger {
-    @apply bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300;
-  }
-}
-
-/* The default popover placement is centred in the viewport; dim what's behind it so
-   it reads as a focused choice rather than a floating fragment. */
+/* Native popovers are centred in the viewport; dim what's behind them. */
 [popover]::backdrop {
-  background: rgb(15 23 42 / 0.35);
-  backdrop-filter: blur(1px);
+  background: rgb(17 17 17 / 0.35);
 }
 
-html.dark [popover]::backdrop {
-  background: rgb(2 6 23 / 0.55);
+[data-theme="dark"] [popover]::backdrop {
+  background: rgb(0 0 0 / 0.55);
 }
 
+/* Avoid Safari's automatic zoom when a form control receives focus. */
 @media (max-width: 639px) {
-  /* Avoid Safari's automatic zoom when a form control receives focus. */
   .ui-input,
   .ui-input-inline,
   .ui-select,
@@ -354,4 +756,108 @@ html.dark [popover]::backdrop {
    timeout in case static/straat.js never loads. */
 html.straat:not(.straat-ready) body {
   visibility: hidden;
+}
+
+/* Dashboard pipeline board: four derived lanes, one visible on mobile. */
+@layer components {
+  .capture {
+    background: var(--color-surface);
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    padding: 0.875rem 1rem;
+  }
+
+  .next-strip {
+    background: var(--color-next);
+    color: #111111;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    padding: 0.875rem 1rem;
+  }
+
+  .slot {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: 4px;
+  }
+
+  .slot-filled {
+    background: var(--color-line);
+  }
+
+  .slot-open {
+    border-style: dashed;
+  }
+
+  .board {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      align-items: start;
+    }
+  }
+
+  .lane {
+    background: var(--color-surface-2);
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-xl);
+    padding: 0.625rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    min-width: 0;
+  }
+
+  .lane-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .lane-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 12px;
+  }
+
+  .lane-tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 12px;
+    border: var(--border-w) solid var(--color-line);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 13px;
+    text-decoration: none;
+    color: var(--color-text);
+    background: var(--color-surface);
+  }
+
+  .lane-tab-active {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    box-shadow: var(--shadow-md);
+  }
 }

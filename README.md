@@ -66,86 +66,18 @@ pulls correctly on an x86 laptop and on an arm64 VPS. The workflow requires the
 repository's Actions setting **Workflow permissions** to allow read and write
 permissions; its job also declares `packages: write` for `GITHUB_TOKEN`.
 
-## The status ladder
+## Stage
 
-```
-idea  ->  assigned  ->  planned  ->  presented  ->  archived
-```
+A subject's stage is derived on every request, never maintained by hand:
 
-The first three follow from two facts, so you never maintain the status by hand:
+| Stage       | Means                                                            |
+| ----------- | ---------------------------------------------------------------- |
+| `idea`      | No speaker yet.                                                  |
+| `speaker`   | Has a speaker but no session date. This is the schedulable pool. |
+| `planned`   | Sits on a session date that is still ahead.                      |
+| `presented` | Sits on a session date that has passed.                          |
 
-| Status      | Means                                                                                   |
-| ----------- | --------------------------------------------------------------------------------------- |
-| `idea`      | A topic with nobody on it yet. **Needs a speaker.**                                     |
-| `assigned`  | Someone has agreed to present it, but it has no date. **This is the schedulable pool.** |
-| `planned`   | Sits on a session date.                                                                 |
-| `presented` | It happened.                                                                            |
-| `archived`  | Off the list.                                                                           |
-
-Adding the first speaker moves `idea -> assigned`; removing the last one moves
-it back. Putting it on a session makes it `planned`; taking it off drops it to
-`assigned` or `idea` depending on whether a speaker remains.
-
-`presented` and `archived` are sticky - once set, only an explicit change moves
-them, so tidying up never rewrites history. Archived subjects are hidden from
-the dashboard and the default subject list, and stay reachable by filtering for
-them.
-
-The dashboard is built around that split: _ready to schedule_ (find a date) and
-_needs a speaker_ (find a person).
-
-## Gamification
-
-`/standings` is read-only, but requires the organiser password like the other
-planning views. Visitors without the password can only read the main dashboard;
-its forms and links into private pages are omitted, and all changes remain
-gated.
-
-**Nothing is stored as a score.** XP, the leaderboard, seasons, the trophy,
-radar coverage and the roulette pool are all recomputed from subjects, sessions
-and people on every request. A stored total is a second source of truth: rename
-a person, delete a subject, un-present a talk, and the number quietly stops
-matching what it claims to measure.
-
-### XP
-
-| Event                      | XP                 |
-| -------------------------- | ------------------ |
-| The idea exists at all     | 1                  |
-| Someone claims it          | 3                  |
-| It gets a date             | 5                  |
-| They present it            | 10                 |
-| Slides **and** a recording | +5                 |
-| Bounty                     | whatever was on it |
-
-Co-speakers each get the full value — it's credit, not a pie to divide.
-
-### The six mechanics
-
-**Rolling leaderboard** — the last 12 months, not all time. An all-time board
-gets locked up by whoever started early and stops motivating everyone else
-within a year.
-
-**Bounties** — put XP on an unclaimed subject from its detail page to tempt
-someone into taking it. It pays out only on delivery, and it drops off the
-public board the moment somebody claims it. Aimed squarely at the "needs a
-speaker" column, which is the real bottleneck.
-
-**Roulette** — spins over everyone who hasn't presented in six months,
-never-presented first. The pick is uniform over that pool rather than weighted
-by how overdue someone is: a wheel that always lands on the same person stops
-being a game and becomes an accusation.
-
-**Coverage radar** — twelve fixed tech areas, tagged per subject on its detail
-page. Fixed rather than free-form, because the point is to show _gaps_, and you
-cannot have a gap in a set that grows to fit whatever people typed. Only
-delivered talks count as coverage — a tag on an unstarted idea is an intention.
-
-**Season progress** — the status ladder already is a progression, so the whole
-company gets one XP bar per calendar quarter.
-
-**The trophy** — whoever topped the previous completed quarter. Pair it with a
-physical object that moves desk to desk; the page just says who has it.
+Only `stage_changed_at` is stored, for the idle markers on the board.
 
 ## Keyboard
 
@@ -207,17 +139,16 @@ migration a type error.
 
 ### Styling
 
-Hand-written Tailwind, themed after **sprintendo**: dashed hairline borders
-instead of solid ones, monospace for every heading, label, badge and input,
-near-zero corner radii, a flat slate palette with a single Microsoft-blue
-accent, and small uppercase status badges. The design tokens live in the
-`@theme` block at the top of `assets/styles.css` and the component vocabulary
-(`ui-input`, `ui-card`, `ui-badge`, ...) just below it, so retheming is one
-file.
+Hand-written Tailwind 4 over one `@theme` block at the top of
+`assets/styles.css`: light and dark tokens, then the component vocabulary
+(`ui-card`, `ui-btn`, `ui-badge-*`, ...), so retheming is one file. The only
+webfont is Space Grotesk 500 and 700, served from `static/fonts/`.
 
-Light and dark both ship; the toggle is in the header and the choice is applied
-before first paint, so there is no flash of the wrong theme. No webfonts are
-loaded - Segoe UI with a system fallback, and the system monospace.
+Colour carries meaning: yellow is active or primary, cyan is the next step,
+orange is careful (idle, duplicate, destructive), and the stage colours mark the
+lifecycle. Light is the default. The header toggle stores `sp-theme` and the
+choice is applied before first paint. The straat toggle changes labels only,
+never data.
 
 ### Islands
 
@@ -269,11 +200,10 @@ upgraded in place and a fresh one initialises itself.
 deno task test
 ```
 
-49 tests: the status ladder as a pure function, plus integration tests against a
-real migrated SQLite file - case-insensitive person resolution, person merging,
-that deleting a session unschedules its subjects rather than deleting them, that
-archived subjects stay out of the default list, and that foreign keys are
-actually enforced.
+34 tests: the stage derivation as a pure function, plus integration tests
+against a real migrated SQLite file - case-insensitive person resolution, person
+merging, that deleting a session unschedules its subjects rather than deleting
+them, and that foreign keys are actually enforced.
 
 `tests/fixtures.ts` holds the demo data, used by `deno task demo` and available
 to tests.
@@ -283,13 +213,11 @@ to tests.
 ```
 db/
   node-sqlite-dialect.ts   Kysely dialect for Deno's built-in SQLite
-  schema.ts                table types + the status ladder's constants
+  schema.ts                table types
   migrations/              up()/down() files, listed in index.ts
   migrate.ts               the dbup/dbdown/dbredo/dbstatus runner
-services/                  subjects (owns the ladder), sessions, people
-  scoring.ts               XP, leaderboard, seasons, radar, roulette — all derived
+services/                  subjects (owns the stage), sessions, people
 routes/                    SSR pages and their POST handlers
-  standings.tsx            the organiser's read-only scoreboard
 islands/                   the few interactive pieces
 components/                presentational, server-rendered
 assets/styles.css          design tokens + component vocabulary

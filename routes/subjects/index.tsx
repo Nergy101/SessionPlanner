@@ -1,22 +1,24 @@
 import { page } from "fresh";
 import { define } from "@/utils.ts";
-import { SUBJECT_STATUSES, type SubjectStatus } from "@/db/schema.ts";
 import {
   createSubject,
   isSortKey,
+  linkLabel,
   listSubjects,
-  setSubjectBounty,
   setSubjectPeople,
   setSubjectSession,
-  setSubjectStatus,
   setSubjectTitle,
   type SortDir,
   type SortKey,
   sortSubjects,
+  type Stage,
+  STAGE_LABEL,
+  STAGE_ORDER,
 } from "@/services/subjects.ts";
 import { formatShortDate, listSessions } from "@/services/sessions.ts";
 import { listPeople } from "@/services/people.ts";
 import { SpeakerSelect } from "@/components/SpeakerSelect.tsx";
+import { StatusBadge } from "@/components/StatusBadge.tsx";
 import QuickAdd from "@/islands/QuickAdd.tsx";
 import InlineText from "@/islands/InlineText.tsx";
 import AutoSubmitSelect from "@/islands/AutoSubmitSelect.tsx";
@@ -25,27 +27,37 @@ export const handler = define.handlers({
   async GET(ctx) {
     const q = ctx.url.searchParams;
     const text = q.get("q") ?? "";
-    const statusParam = q.get("status") ?? "";
+    const stageParam = q.get("stage") ?? "";
     const personParam = q.get("person") ?? "";
 
-    const status = SUBJECT_STATUSES.includes(statusParam as SubjectStatus)
-      ? statusParam as SubjectStatus
+    const stage = STAGE_ORDER.includes(stageParam as Stage)
+      ? stageParam as Stage
       : undefined;
     const personId = personParam ? Number(personParam) : undefined;
     const sortParam = q.get("sort") ?? "";
     const sort = isSortKey(sortParam) ? sortParam : null;
     const dir: SortDir = q.get("dir") === "desc" ? "desc" : "asc";
 
-    const [subjects, sessions, people] = await Promise.all([
+    const [subjects, everything, sessions, people] = await Promise.all([
       listSubjects({
         text,
-        status,
+        stage,
         personId: Number.isFinite(personId) ? personId : undefined,
-        includeArchived: status === "archived",
       }),
+      // Unfiltered, so the stage pills show how many each one holds in total.
+      listSubjects(),
       listSessions(),
       listPeople(),
     ]);
+
+    const counts = {
+      all: everything.length,
+      idea: 0,
+      speaker: 0,
+      planned: 0,
+      presented: 0,
+    };
+    for (const s of everything) counts[s.stage] += 1;
 
     return page({
       // No sort chosen keeps the list's own attention-first order.
@@ -54,8 +66,9 @@ export const handler = define.handlers({
       dir,
       sessions,
       people,
+      counts,
       text,
-      status: statusParam,
+      stage: stageParam,
       person: personParam,
       added: q.get("added"),
     });
@@ -94,21 +107,9 @@ export const handler = define.handlers({
       case "title":
         await setSubjectTitle(id, String(form.get("title") ?? ""));
         break;
-      case "status": {
-        const value = String(form.get("status") ?? "");
-        if (SUBJECT_STATUSES.includes(value as SubjectStatus)) {
-          await setSubjectStatus(id, value as SubjectStatus);
-        }
-        break;
-      }
       case "session": {
         const value = String(form.get("session") ?? "");
         await setSubjectSession(id, value ? Number(value) : null);
-        break;
-      }
-      case "bounty": {
-        const raw = String(form.get("bounty") ?? "").trim();
-        if (raw) await setSubjectBounty(id, Number(raw));
         break;
       }
       case "people":
@@ -123,8 +124,18 @@ export const handler = define.handlers({
 });
 
 export default define.page<typeof handler>(function Subjects({ data, url }) {
-  const { subjects, sort, dir, sessions, people, text, status, person, added } =
-    data;
+  const {
+    subjects,
+    sort,
+    dir,
+    sessions,
+    people,
+    counts,
+    text,
+    stage,
+    person,
+    added,
+  } = data;
 
   /** A header that sorts by its column; a second click flips the direction. */
   const SortHeader = (
@@ -136,8 +147,7 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
     },
   ) => {
     const active = sort === col;
-    // Bounty is most useful biggest-first; everything else starts A→Z / soonest.
-    const first: SortDir = col === "bounty" ? "desc" : "asc";
+    const first: SortDir = "asc";
     const next: SortDir = active ? (dir === "asc" ? "desc" : "asc") : first;
     const params = new URLSearchParams(url.search);
     params.delete("added");
@@ -154,8 +164,8 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
       >
         <a
           href={`/subjects?${params}`}
-          class={`inline-flex items-center gap-1 no-underline hover:text-brand ${
-            active ? "text-brand" : "text-inherit"
+          class={`inline-flex items-center gap-1 text-text no-underline hover:underline ${
+            active ? "font-bold" : ""
           }`}
         >
           {label}
@@ -174,35 +184,64 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
       label: formatShortDate(s.date),
     })),
   ];
-  const statusOptions = SUBJECT_STATUSES.map((s) => ({ value: s, label: s }));
+
+  /** The stage pills are plain links, so each one is a bookmarkable filter. */
+  const stagePills = [
+    { key: "", label: "All", count: counts.all },
+    ...STAGE_ORDER.map((s) => ({
+      key: s,
+      label: STAGE_LABEL[s],
+      count: counts[s],
+    })),
+  ].map((pill) => {
+    const params = new URLSearchParams(url.search);
+    params.delete("added");
+    if (pill.key) params.set("stage", pill.key);
+    else params.delete("stage");
+    return { ...pill, href: `/subjects?${params}`, active: stage === pill.key };
+  });
 
   return (
     <>
       <div class="mb-6">
-        <h1 class="text-2xl">subjects</h1>
-        <p class="mt-1 max-w-2xl text-slate-600 dark:text-slate-400">
-          Every topic, wherever it sits on the ladder. Title, status, date and
-          bounty are editable right here.
+        <h1 class="text-3xl tracking-tight">subjects</h1>
+        <p class="mt-1 max-w-2xl text-muted">
+          {counts.all}{" "}
+          total · the backlog and the archive. Title, session and speakers are
+          editable right here.
         </p>
       </div>
 
-      <div class="mb-6">
+      <div class="mb-4">
         <QuickAdd action={`/subjects${url.search}`} intent="create" autofocus />
         {added && (
           <p class="ui-hint mt-2">
-            added{" "}
-            <strong class="text-slate-900 dark:text-slate-100">{added}</strong>
-            {" "}
+            added <strong class="text-text">{added}</strong>{" "}
             — keep typing to add another.
           </p>
         )}
       </div>
 
+      <nav class="mb-4 flex flex-wrap gap-2" aria-label="Filter by stage">
+        {stagePills.map((pill) => (
+          <a
+            key={pill.key || "all"}
+            href={pill.href}
+            class={`ui-btn ui-btn-sm no-underline ${
+              pill.active ? "ui-btn-primary" : "ui-btn-ghost"
+            }`}
+            aria-current={pill.active ? "page" : undefined}
+          >
+            {pill.label} <span class="opacity-70">{pill.count}</span>
+          </a>
+        ))}
+      </nav>
+
       <div class="ui-table-wrap">
         {
           /* GET, so a filtered view is a plain bookmarkable query string. The
-            selects apply on change and Enter applies the search, so there is no
-            "filter" button to press — nothing waits for a second action. */
+            person select applies on change and Enter applies the search, so there is
+            no "filter" button to press. */
         }
         <form method="get" class="ui-toolbar">
           {sort && (
@@ -211,23 +250,15 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
               <input type="hidden" name="dir" value={dir} />
             </>
           )}
+          {stage && <input type="hidden" name="stage" value={stage} />}
           <input
             type="search"
             name="q"
             value={text}
             autofocus
-            placeholder="search titles and descriptions, then press enter"
+            placeholder="Search title, description, speaker, link…"
             aria-label="Search subjects"
             class="ui-input min-w-[14rem] flex-1"
-          />
-          <AutoSubmitSelect
-            name="status"
-            value={status}
-            ariaLabel="Filter by status"
-            options={[
-              { value: "", label: "all statuses" },
-              ...SUBJECT_STATUSES.map((v) => ({ value: v, label: v })),
-            ]}
           />
           <AutoSubmitSelect
             name="person"
@@ -238,7 +269,7 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
               ...people.map((p) => ({ value: String(p.id), label: p.name })),
             ]}
           />
-          {(text || status || person || sort) && (
+          {(text || stage || person || sort) && (
             <a href="/subjects" class="ui-btn ui-btn-ghost">clear</a>
           )}
         </form>
@@ -247,7 +278,7 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
           ? (
             <div class="p-4">
               <div class="ui-empty">
-                {text || status || person
+                {text || stage || person
                   ? "Nothing matches. Try clearing a filter."
                   : "No subjects yet. Capture the first one above."}
               </div>
@@ -268,22 +299,15 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
                   <tr>
                     <th class="ui-th w-16"></th>
                     <SortHeader col="title" label="Title" class="w-[34%]" />
+                    <SortHeader col="stage" label="Stage" />
                     <SortHeader col="speakers" label="Speakers" />
-                    <SortHeader col="status" label="Status" />
+                    <th class="ui-th">Links</th>
                     <SortHeader col="session" label="Session" />
-                    <SortHeader
-                      col="bounty"
-                      label="Bounty"
-                      title="Extra XP for whoever presents it"
-                    />
                   </tr>
                 </thead>
                 <tbody>
                   {subjects.map((s) => (
-                    <tr
-                      key={s.id}
-                      class="hover:bg-slate-50 dark:hover:bg-slate-800/40"
-                    >
+                    <tr key={s.id} class="hover:bg-surface-2">
                       <td class="ui-td">
                         <a
                           href={`/subjects/${s.id}`}
@@ -307,6 +331,10 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
                       </td>
 
                       <td class="ui-td">
+                        <StatusBadge stage={s.stage} />
+                      </td>
+
+                      <td class="ui-td">
                         <SpeakerSelect
                           subjectId={s.id}
                           subjectTitle={s.title}
@@ -317,16 +345,22 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
                       </td>
 
                       <td class="ui-td">
-                        <form method="post" action={`/subjects${url.search}`}>
-                          <input type="hidden" name="intent" value="status" />
-                          <input type="hidden" name="id" value={s.id} />
-                          <AutoSubmitSelect
-                            name="status"
-                            value={s.status}
-                            options={statusOptions}
-                            ariaLabel="Status"
-                          />
-                        </form>
+                        <div class="flex flex-wrap gap-1">
+                          {s.links.slice(0, 2).map((l) => (
+                            <a
+                              key={l.id}
+                              href={l.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="ui-chip"
+                            >
+                              {linkLabel(l)} ↗
+                            </a>
+                          ))}
+                          {s.links.length > 2 && (
+                            <span class="ui-chip">+{s.links.length - 2}</span>
+                          )}
+                        </div>
                       </td>
 
                       <td class="ui-td">
@@ -343,28 +377,6 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
                           />
                         </form>
                       </td>
-
-                      <td class="ui-td">
-                        <form
-                          method="post"
-                          action={`/subjects${url.search}`}
-                          class="flex items-center gap-1"
-                        >
-                          <input type="hidden" name="intent" value="bounty" />
-                          <input type="hidden" name="id" value={s.id} />
-                          <InlineText
-                            name="bounty"
-                            type="number"
-                            min={0}
-                            step={5}
-                            value={String(s.bounty)}
-                            ariaLabel={`Bounty for ${s.title}, in XP`}
-                            class="w-20 text-right"
-                            autosave={600}
-                          />
-                          <span class="ui-hint">XP</span>
-                        </form>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -376,7 +388,6 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
       {subjects.length > 0 && (
         <p class="ui-hint mt-3">
           {subjects.length} subject{subjects.length === 1 ? "" : "s"}
-          {!status && " · archived hidden unless you filter for it"}
         </p>
       )}
     </>

@@ -3,15 +3,18 @@ import { define } from "@/utils.ts";
 import {
   createSubject,
   getSubject,
-  listSchedulable,
+  listSubjects,
   setSubjectPeople,
   setSubjectSession,
+  type Stage,
+  type Subject,
 } from "@/services/subjects.ts";
 import {
   daysAway,
   formatShortDate,
   getUpcomingSessions,
   type Session,
+  SESSION_SLOTS,
 } from "@/services/sessions.ts";
 import { SubjectCard } from "@/components/SubjectCard.tsx";
 import QuickAdd from "@/islands/QuickAdd.tsx";
@@ -19,42 +22,81 @@ import { normalizeName } from "@/services/people.ts";
 import AutoSubmitSelect from "@/islands/AutoSubmitSelect.tsx";
 import PeoplePicker from "@/islands/PeoplePicker.tsx";
 
-/** How many upcoming sessions the dashboard lists before deferring to /sessions. */
-const UPCOMING_LIMIT = 5;
+/**
+ * The four lanes of the board. Each lane is one derived stage: nothing is dragged,
+ * a subject moves when its speakers or its session date change.
+ */
+const LANES: readonly {
+  key: Stage;
+  label: string;
+  hint: string;
+  pill: string;
+}[] = [
+  {
+    key: "idea",
+    label: "idea",
+    hint: "needs a speaker",
+    pill: "ui-badge-idea",
+  },
+  {
+    key: "speaker",
+    label: "has speaker",
+    hint: "needs a session",
+    pill: "ui-badge-speaker",
+  },
+  {
+    key: "planned",
+    label: "planned",
+    hint: "on an upcoming date",
+    pill: "ui-badge-planned",
+  },
+  {
+    key: "presented",
+    label: "presented",
+    hint: "the archive",
+    pill: "ui-badge-presented",
+  },
+];
+
+const isLane = (value: string | null): value is Stage =>
+  LANES.some((lane) => lane.key === value);
 
 /**
  * Visitors without the password get this page read-only (see the gate in main.ts):
- * the same lists, but no capture box, no forms, and no links into the private
+ * the same lanes, but no capture box, no forms, and no links into the private
  * subject and session pages they'd only bounce off.
  */
 export const handler = define.handlers({
   async GET(ctx) {
-    const [upcoming, pool] = await Promise.all([
+    const [upcoming, idea, speaker, planned, presented] = await Promise.all([
       getUpcomingSessions(),
-      listSchedulable(),
+      listSubjects({ stage: "idea" }),
+      listSubjects({ stage: "speaker" }),
+      listSubjects({ stage: "planned" }),
+      listSubjects({ stage: "presented" }),
     ]);
+    const requested = ctx.url.searchParams.get("lane");
+
     return page({
-      upcoming: upcoming.slice(0, UPCOMING_LIMIT),
-      // Every future date, not just the listed ones, is a valid slot to fill.
+      next: upcoming[0] ?? null,
+      // Every future date, not just the next one, is a valid slot to fill.
       slots: upcoming.map((s) => ({
         value: String(s.id),
         label: formatShortDate(s.date),
       })),
-      ready: pool.filter((s) => s.status === "assigned"),
-      ideas: pool.filter((s) => s.status === "idea"),
+      lanes: { idea, speaker, planned, presented },
+      activeLane: isLane(requested) ? requested : "idea",
       added: ctx.url.searchParams.get("added"),
       scheduled: ctx.url.searchParams.get("scheduled"),
-      speaker: ctx.url.searchParams.get("speaker"),
+      speakerAdded: ctx.url.searchParams.get("speaker"),
     });
   },
 
   /**
    * The capture box posts here and comes straight back, so you can fire off several
-   * topics in a row. `autofocus` on the box means the redirect lands with the cursor
-   * already in it. Flesh a topic out later, from its own page.
-   *
-   * The ready-to-schedule cards post here too, with `intent=schedule`, and the
-   * needs-a-speaker cards with `intent=speaker`.
+   * topics in a row. A `@name` token in the capture adds that speaker in the same
+   * step. The lane cards post here too: `intent=schedule` puts a speaker's topic on
+   * a session, `intent=speaker` adds a speaker to an idea.
    */
   async POST(ctx) {
     const form = await ctx.req.formData();
@@ -92,282 +134,262 @@ export const handler = define.handlers({
       );
     }
 
-    const title = String(form.get("title") ?? "").trim();
+    const { title, speakers } = parseCapture(String(form.get("title") ?? ""));
     if (!title) return ctx.redirect("/", 303);
 
-    await createSubject(title);
+    const id = await createSubject(title);
+    if (speakers.length) await setSubjectPeople(id, speakers);
     return ctx.redirect(`/?added=${encodeURIComponent(title)}`, 303);
   },
 });
 
+/**
+ * `Testcontainers in CI @Jan de Vries`: everything before the first `@` is the
+ * title, everything after it is one speaker name (so it may contain spaces).
+ */
+function parseCapture(raw: string) {
+  const at = raw.indexOf("@");
+  const title = (at === -1 ? raw : raw.slice(0, at)).replace(/\s+/g, " ")
+    .trim();
+  const speaker = at === -1 ? "" : normalizeName(raw.slice(at + 1));
+  return { title, speakers: speaker ? [speaker] : [] };
+}
+
 export default define.page<typeof handler>(function Dashboard({ data, state }) {
-  const { upcoming, slots, ready, ideas, added, scheduled, speaker } = data;
+  const {
+    next,
+    slots,
+    lanes,
+    activeLane,
+    added,
+    scheduled,
+    speakerAdded,
+  } = data;
   const signedIn = state.signedIn;
 
   return (
     <>
-      <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 class="text-2xl">dashboard</h1>
-          <p class="mt-1 max-w-2xl text-slate-600 dark:text-slate-400">
-            What's coming up, and what still needs a speaker or a date.
-          </p>
-        </div>
-        {!signedIn && (
-          <a
-            href="/login"
-            class="ui-btn ui-btn-primary self-start no-underline"
-          >
-            sign in to plan
-          </a>
-        )}
+      <div class="mb-6">
+        <h1 class="text-3xl tracking-tight">dashboard</h1>
+        <p class="mt-1 max-w-2xl text-muted">
+          What's coming up, and where every topic stands.
+        </p>
       </div>
 
-      {signedIn && (
-        <div class="mb-9">
-          <QuickAdd
-            action="/"
-            autofocus
-            placeholder="heard a good topic? type it here…"
-            label="capture"
-          />
-          {added && (
-            <p class="ui-hint mt-2">
-              added{" "}
-              <strong class="text-slate-900 dark:text-slate-100">
-                {added}
-              </strong>{" "}
-              — keep typing to add another.
-            </p>
+      <div class="mb-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
+        {signedIn
+          ? (
+            <div class="capture">
+              <QuickAdd
+                action="/"
+                autofocus
+                placeholder="Capture an idea… @name for a speaker, ⏎ to add"
+                label="Add"
+              />
+              {added && (
+                <p class="ui-hint mt-2">
+                  added <strong class="text-text">{added}</strong>{" "}
+                  — keep typing to add another.
+                </p>
+              )}
+            </div>
+          )
+          : (
+            <div class="capture">
+              <p class="text-muted">
+                Read-only.{" "}
+                <a href="/login" class="font-semibold text-text">Sign in</a>
+                {" "}
+                to capture and plan.
+              </p>
+            </div>
           )}
-        </div>
+
+        <NextSession session={next} />
+      </div>
+
+      {(scheduled || speakerAdded) && (
+        <p class="ui-hint mb-4">
+          {scheduled && (
+            <>
+              scheduled on <strong class="text-text">{scheduled}</strong>.{" "}
+            </>
+          )}
+          {speakerAdded && (
+            <>
+              <strong class="text-text">{speakerAdded}</strong>{" "}
+              is on it — it's now under has speaker.
+            </>
+          )}
+        </p>
       )}
 
-      <section class="mb-9">
-        <div class="ui-section-head">
-          <h2>upcoming sessions</h2>
-          {signedIn && (
-            <a href="/sessions" class="ui-hint no-underline hover:text-brand">
-              all sessions →
-            </a>
-          )}
-        </div>
+      <nav class="mb-4 flex flex-wrap gap-2 md:hidden" aria-label="Lanes">
+        {LANES.map((lane) => (
+          <a
+            key={lane.key}
+            href={`/?lane=${lane.key}`}
+            class={`lane-tab ${
+              lane.key === activeLane ? "lane-tab-active" : ""
+            }`}
+            aria-current={lane.key === activeLane ? "page" : undefined}
+          >
+            {lane.label} ({lanes[lane.key].length})
+          </a>
+        ))}
+      </nav>
 
-        {upcoming.length
-          ? (
-            <div class="ui-table-wrap">
-              {upcoming.map((s, i) => (
-                <UpcomingRow
-                  key={s.id}
-                  session={s}
-                  first={i === 0}
-                  linked={signedIn}
-                />
-              ))}
-            </div>
-          )
-          : (
-            <div class="ui-empty">
-              {signedIn
-                ? (
-                  <>
-                    No session scheduled yet.{" "}
-                    <a href="/sessions">Pick a date</a> to start planning one.
-                  </>
-                )
-                : "No session scheduled yet."}
-            </div>
-          )}
-      </section>
+      <div class="board">
+        {LANES.map((lane) => {
+          const items = lanes[lane.key];
+          const isActive = lane.key === activeLane;
+          return (
+            <section
+              key={lane.key}
+              class={`lane ${isActive ? "" : "hidden"} md:flex`}
+              aria-labelledby={`lane-${lane.key}`}
+            >
+              <div class="lane-head">
+                <div>
+                  <h2 id={`lane-${lane.key}`} class="sr-only">{lane.label}</h2>
+                  <span class={`ui-badge ${lane.pill}`}>{lane.label}</span>
+                  <p class="ui-hint mt-1">{lane.hint}</p>
+                </div>
+                <span class="lane-count">{items.length}</span>
+              </div>
 
-      <section class="mb-9">
-        <div class="ui-section-head">
-          <h2>ready to schedule</h2>
-          <span class="ui-hint">has a speaker, needs a date</span>
-        </div>
-        {scheduled && (
-          <p class="ui-hint -mt-2 mb-3">
-            scheduled on{" "}
-            <strong class="text-slate-900 dark:text-slate-100">
-              {scheduled}
-            </strong>.
-          </p>
-        )}
-        {ready.length
-          ? (
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {ready.map((s) => (
-                <SubjectCard key={s.id} subject={s} linked={signedIn}>
-                  {!signedIn ? null : slots.length
-                    ? (
-                      <form method="post" action="/">
-                        <input type="hidden" name="intent" value="schedule" />
-                        <input type="hidden" name="subject" value={s.id} />
-                        <AutoSubmitSelect
-                          name="session"
-                          value=""
-                          ariaLabel={`Schedule ${s.title} on a session`}
-                          class="ui-select py-1 text-xs"
-                          options={[
-                            { value: "", label: "schedule on…" },
-                            ...slots,
-                          ]}
-                        />
-                      </form>
-                    )
-                    : (
-                      <a
-                        href="/sessions"
-                        class="ui-hint no-underline hover:text-brand"
-                      >
-                        no upcoming sessions — add one →
-                      </a>
-                    )}
-                </SubjectCard>
-              ))}
-            </div>
-          )
-          : (
-            <div class="ui-empty">
-              Nothing waiting for a date. Find speakers for the ideas below.
-            </div>
-          )}
-      </section>
-
-      <section>
-        <div class="ui-section-head">
-          <h2>needs a speaker</h2>
-          <span class="ui-hint">ideas nobody has picked up yet</span>
-        </div>
-        {speaker && (
-          <p class="ui-hint -mt-2 mb-3">
-            <strong class="text-slate-900 dark:text-slate-100">
-              {speaker}
-            </strong>{" "}
-            is on it — it's now under ready to schedule.
-          </p>
-        )}
-        {ideas.length
-          ? (
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {ideas.map((s) => (
-                <SubjectCard key={s.id} subject={s} linked={signedIn}>
-                  {signedIn && (
-                    <form method="post" action="/">
-                      <input type="hidden" name="intent" value="speaker" />
-                      <input type="hidden" name="subject" value={s.id} />
-                      <PeoplePicker
-                        initial={[]}
-                        autoSubmit
-                        placeholder="assign a speaker…"
-                        inputClass="ui-input py-1 text-xs"
+              {items.length
+                ? items.map((subject) => (
+                  <SubjectCard
+                    key={subject.id}
+                    subject={subject}
+                    linked={signedIn}
+                  >
+                    {signedIn && (
+                      <LaneAction
+                        lane={lane.key}
+                        subject={subject}
+                        slots={slots}
                       />
-                    </form>
-                  )}
-                </SubjectCard>
-              ))}
-            </div>
-          )
-          : (
-            <div class="ui-empty">
-              {signedIn
-                ? "No loose ideas. Capture one above."
-                : "No loose ideas."}
-            </div>
-          )}
-      </section>
+                    )}
+                  </SubjectCard>
+                ))
+                : (
+                  <div class="ui-empty">
+                    {emptyText(lane.key, signedIn)}
+                  </div>
+                )}
+            </section>
+          );
+        })}
+      </div>
+
+      <p class="mt-6">
+        <a href="/sessions" class="ui-hint hover:text-text">
+          all sessions →
+        </a>
+      </p>
     </>
   );
 });
 
-/** One line per session: the date on the left, what's on it to the right. */
-function UpcomingRow(
-  { session, first, linked }: {
-    session: Session;
-    first: boolean;
-    linked: boolean;
-  },
-) {
-  const date = new Date(`${session.date}T00:00:00`).toLocaleDateString(
-    "en-GB",
-    { weekday: "short", day: "numeric", month: "short" },
-  );
+function emptyText(lane: Stage, signedIn: boolean): string {
+  switch (lane) {
+    case "idea":
+      return signedIn
+        ? "No loose ideas. Capture one above."
+        : "No loose ideas.";
+    case "speaker":
+      return "Nothing waiting for a date. Find speakers for the ideas.";
+    case "planned":
+      return "Nothing on an upcoming session yet.";
+    case "presented":
+      return "No presented topics yet.";
+  }
+}
+
+/** The next upcoming session with its slots: filled squares are taken. */
+function NextSession({ session }: {
+  session: Session | null;
+}) {
+  if (!session) {
+    return (
+      <div class="next-strip">
+        <p class="font-display text-lg font-bold">No upcoming session</p>
+        <a href="/sessions" class="ui-hint text-[#111] underline">
+          add a date →
+        </a>
+      </div>
+    );
+  }
+
+  const filled = session.subjects.length;
+  const open = Math.max(SESSION_SLOTS - filled, 0);
 
   return (
-    <div
-      class={`flex flex-col gap-1.5 border-b border-dashed border-slate-200 px-3 py-2.5 last:border-b-0 sm:flex-row sm:gap-4 dark:border-slate-700/70 ${
-        first ? "bg-brand/5" : ""
-      }`}
-    >
-      <div class="flex shrink-0 items-baseline gap-2 sm:w-40 sm:flex-col sm:gap-0">
-        {linked
-          ? (
-            <a
-              href={`/sessions/${session.id}`}
-              class="font-mono text-sm font-semibold text-slate-900 no-underline hover:text-brand dark:text-slate-100"
-            >
-              {date}
-            </a>
-          )
-          : (
-            <span class="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {date}
-            </span>
-          )}
-        <span class={`ui-hint ${first ? "text-brand dark:text-brand" : ""}`}>
-          {daysAway(session.date)}
-        </span>
+    <a href={`/sessions/${session.id}`} class="next-strip no-underline">
+      <p class="ui-eyebrow text-[#111]">
+        Next · {formatShortDate(session.date)}
+      </p>
+      <p class="mt-1 font-display text-lg font-bold">
+        {filled} of {SESSION_SLOTS} slots · {daysAway(session.date)}
+      </p>
+      <div class="mt-2 flex gap-1.5" aria-hidden="true">
+        {Array.from({ length: SESSION_SLOTS }, (_, i) => (
+          <span
+            key={i}
+            class={`slot ${i < filled ? "slot-filled" : "slot-open"}`}
+          />
+        ))}
       </div>
-
-      <div class="min-w-0 flex-1">
-        {session.subjects.length
-          ? (
-            <ul class="flex flex-col gap-1">
-              {session.subjects.map((s) => (
-                <li
-                  key={s.id}
-                  class="flex flex-wrap items-center gap-x-2 gap-y-0.5"
-                >
-                  {linked
-                    ? (
-                      <a
-                        href={`/subjects/${s.id}`}
-                        class="font-mono text-[0.8rem] text-slate-900 no-underline hover:text-brand dark:text-slate-100"
-                      >
-                        {s.title}
-                      </a>
-                    )
-                    : (
-                      <span class="font-mono text-[0.8rem] text-slate-900 dark:text-slate-100">
-                        {s.title}
-                      </span>
-                    )}
-                  {s.people.length
-                    ? (
-                      <span class="ui-hint">
-                        {s.people.map((p) => p.name).join(", ")}
-                      </span>
-                    )
-                    : (
-                      <span class="ui-badge ui-badge-danger">
-                        needs a speaker
-                      </span>
-                    )}
-                </li>
-              ))}
-            </ul>
-          )
-          : linked
-          ? (
-            <a
-              href={`/sessions/${session.id}`}
-              class="ui-hint italic no-underline hover:text-brand"
-            >
-              nothing planned yet — add a topic
-            </a>
-          )
-          : <span class="ui-hint italic">nothing planned yet</span>}
-      </div>
-    </div>
+      <span class="sr-only">{open} open</span>
+    </a>
   );
+}
+
+/** The one next-step form on a lane card. Each stage has exactly one. */
+function LaneAction({ lane, subject, slots }: {
+  lane: Stage;
+  subject: Subject;
+  slots: { value: string; label: string }[];
+}) {
+  if (lane === "idea") {
+    return (
+      <form method="post" action="/">
+        <input type="hidden" name="intent" value="speaker" />
+        <input type="hidden" name="subject" value={subject.id} />
+        <PeoplePicker
+          initial={[]}
+          autoSubmit
+          placeholder="assign a speaker…"
+          inputClass="ui-input py-1 text-xs"
+        />
+      </form>
+    );
+  }
+
+  if (lane === "speaker") {
+    if (!slots.length) {
+      return (
+        <a href="/sessions" class="ui-hint hover:text-text">
+          no upcoming sessions — add one →
+        </a>
+      );
+    }
+    return (
+      <form method="post" action="/">
+        <input type="hidden" name="intent" value="schedule" />
+        <input type="hidden" name="subject" value={subject.id} />
+        <AutoSubmitSelect
+          name="session"
+          value=""
+          ariaLabel={`Schedule ${subject.title} on a session`}
+          class="ui-select py-1 text-xs"
+          options={[{ value: "", label: "schedule on…" }, ...slots]}
+        />
+      </form>
+    );
+  }
+
+  return null;
 }

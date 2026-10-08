@@ -1,6 +1,11 @@
+import { sql } from "@kysely/kysely";
 import { db } from "@/db/db.ts";
-import { STATUS_ORDER } from "@/db/schema.ts";
-import { listSubjects, type Subject } from "./subjects.ts";
+import {
+  computeStage,
+  listSubjects,
+  type Stage,
+  type Subject,
+} from "./subjects.ts";
 
 export interface Session {
   id: number;
@@ -14,6 +19,12 @@ export interface Session {
 
 /** Session cards show at most this many links; each subject chip still leads to the rest. */
 const PREVIEW_LINKS = 3;
+
+/**
+ * Slots per session. The design handoff flags this as an assumption to
+ * revisit; change it here if the organiser wants a different number.
+ */
+export const SESSION_SLOTS = 3;
 
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -30,7 +41,7 @@ async function hydrate(
   if (!rows.length) return [];
 
   // listSubjects already batches people and links.
-  const all = await listSubjects({ includeArchived: true });
+  const all = await listSubjects();
   const bySession = new Map<number, Subject[]>();
   for (const s of all) {
     if (s.sessionId === null) continue;
@@ -112,54 +123,37 @@ export async function updateSession(
 }
 
 /**
- * Subjects survive: the FK is ON DELETE SET NULL, so they just fall back down the
- * ladder to assigned or idea depending on whether a speaker remains.
+ * Subjects survive: the FK is ON DELETE SET NULL, so they just fall back down
+ * the pipeline to speaker or idea depending on whether a speaker remains.
+ * The derived stage needs no recomputation by hand — only stage_changed_at
+ * does, for the subjects this actually moves.
  */
 export async function deleteSession(id: number): Promise<void> {
   await db.transaction().execute(async (trx) => {
-    // Recompute by hand: SET NULL fires in SQLite, but the status column doesn't
-    // know that happened.
     const subjects = await trx
       .selectFrom("subjects")
-      .select(["id", "status"])
+      .select("id")
       .where("session_id", "=", id)
       .execute();
 
+    const before = new Map<number, Stage>();
     for (const s of subjects) {
-      if (
-        s.status === STATUS_ORDER.presented ||
-        s.status === STATUS_ORDER.archived
-      ) continue;
-
-      const hasPerson = await trx
-        .selectFrom("subject_people")
-        .select("person_id")
-        .where("subject_id", "=", s.id)
-        .executeTakeFirst();
-
-      await trx
-        .updateTable("subjects")
-        .set({
-          status: hasPerson ? STATUS_ORDER.assigned : STATUS_ORDER.idea,
-        })
-        .where("id", "=", s.id)
-        .execute();
+      before.set(s.id, await computeStage(trx, s.id));
     }
 
     await trx.deleteFrom("sessions").where("id", "=", id).execute();
+
+    for (const s of subjects) {
+      const after = await computeStage(trx, s.id);
+      if (after !== before.get(s.id)) {
+        await trx
+          .updateTable("subjects")
+          .set({ stage_changed_at: sql`current_timestamp` })
+          .where("id", "=", s.id)
+          .execute();
+      }
+    }
   });
-}
-
-/** Mark every still-planned subject on a session as presented, in one click. */
-export async function markAllPresented(id: number): Promise<number> {
-  const result = await db
-    .updateTable("subjects")
-    .set({ status: STATUS_ORDER.presented })
-    .where("session_id", "=", id)
-    .where("status", "=", STATUS_ORDER.planned)
-    .executeTakeFirst();
-
-  return Number(result.numUpdatedRows ?? 0);
 }
 
 /** A sensible default so adding a session is usually one click. */

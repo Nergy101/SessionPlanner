@@ -1,10 +1,10 @@
-import { STATUS_MEANING, type SubjectStatus } from "@/db/schema.ts";
+import { type Stage, STAGE_MEANING } from "@/services/subjects.ts";
 
-/** One colour per rung, so the ladder is readable down a list. */
-export function StatusBadge({ status }: { status: SubjectStatus }) {
+/** One colour per stage, so the pipeline reads at a glance. */
+export function StatusBadge({ stage }: { stage: Stage }) {
   return (
-    <span class={`ui-badge ui-badge-${status}`} title={STATUS_MEANING[status]}>
-      {status}
+    <span class={`ui-badge ui-badge-${stage}`} title={STAGE_MEANING[stage]}>
+      {stage}
     </span>
   );
 }

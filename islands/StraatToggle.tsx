@@ -28,9 +28,7 @@ export function StraatToggle() {
       aria-pressed={on.value}
       title={on.value ? "Terug naar normaal" : "Straat-taal aan"}
       onClick={() => globalThis.straat?.set(!on.value)}
-      class={`ui-btn ui-btn-sm ${
-        on.value ? "border-solid border-brand text-brand" : "ui-btn-ghost"
-      }`}
+      class={`ui-btn ui-btn-sm ${on.value ? "ui-btn-primary" : "ui-btn-ghost"}`}
     >
       <span aria-hidden="true">🗣️</span>
       <span class="hidden sm:inline">straat-taal</span>

@@ -44,17 +44,20 @@ export default define.page<typeof handler>(function Notes({ data }) {
   return (
     <>
       <div class="mb-6">
-        <h1 class="text-2xl">notes</h1>
-        <p class="mt-1 max-w-2xl text-slate-600 dark:text-slate-400">
-          Private scratch space, free-form. Nothing here feeds the planner,
-          standings or dashboard. A blank note isn't saved, and clearing a note
-          doesn't remove it; use delete for that.
+        <h1 class="text-3xl tracking-tight">notes</h1>
+        <p class="mt-1 max-w-2xl text-muted">
+          Private scratch space, free-form. Nothing here feeds the planner or
+          the dashboard. A blank note isn't saved, and clearing a note doesn't
+          remove it; use delete for that.
         </p>
       </div>
 
-      <form method="post" class="ui-panel mb-6 flex flex-col gap-3">
+      <form
+        method="post"
+        class="mb-6 flex flex-col gap-3 border-2 border-line bg-primary p-4 shadow-[var(--shadow-md)]"
+      >
         <input type="hidden" name="intent" value="create" />
-        <label class="ui-label" for="new-note">new note</label>
+        <label class="ui-label text-[#111]" for="new-note">new note</label>
         <textarea
           id="new-note"
           name="body"
@@ -63,16 +66,18 @@ export default define.page<typeof handler>(function Notes({ data }) {
           class="ui-textarea"
         />
         <div>
-          <button type="submit" class="ui-btn ui-btn-primary">save note</button>
+          <button type="submit" class="ui-btn bg-surface text-text">
+            save note
+          </button>
         </div>
       </form>
 
       {notes.length === 0
         ? <div class="ui-empty">No notes yet. Start typing above.</div>
         : (
-          <div class="flex flex-col gap-6">
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {notes.map((note) => (
-              <section key={note.id} class="ui-panel flex flex-col gap-3">
+              <section key={note.id} class="ui-card">
                 <form method="post" class="flex flex-col gap-3">
                   <input type="hidden" name="intent" value="update" />
                   <input type="hidden" name="id" value={note.id} />
@@ -90,7 +95,7 @@ export default define.page<typeof handler>(function Notes({ data }) {
                   >
                     {note.body}
                   </textarea>
-                  <div class="flex items-center gap-3">
+                  <div class="flex flex-wrap items-center gap-3">
                     <button type="submit" class="ui-btn ui-btn-primary">
                       save
                     </button>

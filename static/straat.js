@@ -29,8 +29,8 @@
     "subjects": "tori's",
     "sessions": "fissa's",
     "people": "matties",
-    "standings": "wie is de baas",
     "notes": "kladblok",
+    "data": "gegevens",
 
     // ---- statuses & their meaning ----
     "idea": "plannetje",
@@ -50,7 +50,6 @@
 
     // ---- tech areas ----
     "languages": "talen",
-    "data": "data, veel data",
     "ai": "robo-brein",
     "cloud": "wolkje",
     "testing": "checken of het werkt",

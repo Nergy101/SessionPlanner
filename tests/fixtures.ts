@@ -12,11 +12,8 @@ import { createSession, nextThursday } from "@/services/sessions.ts";
 import {
   createSubject,
   replaceSubjectLinks,
-  setSubjectBounty,
   setSubjectPeople,
   setSubjectSession,
-  setSubjectStatus,
-  setSubjectTags,
   updateSubjectDetails,
 } from "@/services/subjects.ts";
 
@@ -29,7 +26,7 @@ export async function clearAll(db: Kysely<Database>): Promise<void> {
   await db.deleteFrom("people").execute();
 }
 
-/** One subject on each rung of the ladder, so every view has something to show. */
+/** One subject on each stage, so every view has something to show. */
 export async function seedDemoData(db: Kysely<Database>): Promise<void> {
   await clearAll(db);
 
@@ -74,7 +71,7 @@ export async function seedDemoData(db: Kysely<Database>): Promise<void> {
     { url: "https://opentelemetry.io/docs/", label: "OTel docs" },
   ]);
 
-  // Assigned: has a speaker, waiting for a date
+  // Has speaker, no date yet
   const cpm = await createSubject(
     "Migrating 40 projects to central package management",
   );
@@ -102,7 +99,7 @@ export async function seedDemoData(db: Kysely<Database>): Promise<void> {
     description: "Spoiler: we stopped.",
   });
 
-  // Presented, on the past session
+  // Presented: planned onto a session date that has already passed
   const srcgen = await createSubject("Source generators in anger");
   await updateSubjectDetails(srcgen, {
     title: "Source generators in anger",
@@ -113,83 +110,34 @@ export async function seedDemoData(db: Kysely<Database>): Promise<void> {
   });
   await setSubjectPeople(srcgen, ["Sanne Bakker"]);
   await setSubjectSession(srcgen, past);
-  await setSubjectStatus(srcgen, "presented");
 
-  // ---- history, so the scoreboard has something to show --------------------
+  // Past talks across two quarters, so the history has something to show.
   const monthsBack = (n: number) => {
     const d = new Date();
     d.setMonth(d.getMonth() - n);
     return d.toISOString().slice(0, 10);
   };
 
-  await setSubjectTags(testcontainers, ["testing", "devops"]);
-  await setSubjectTags(otel, ["cloud", "architecture"]);
-  await setSubjectTags(cpm, ["tooling"]);
-  await setSubjectTags(srcgen, ["languages", "tooling"]);
-
-  // A bounty nobody has claimed yet.
-  await setSubjectBounty(k8s, 25);
-  await setSubjectTags(k8s, ["cloud", "devops"]);
-
-  // Past talks across two quarters, so the trophy and the rolling window differ.
   const history = [
-    {
-      title: "Rust for people who like C#",
-      who: ["Jan de Vries"],
-      back: 2,
-      tags: ["languages"],
-      archived: true,
-    },
+    { title: "Rust for people who like C#", who: ["Jan de Vries"], back: 2 },
     {
       title: "Blue/green without downtime",
       who: ["Youssef el Amrani"],
       back: 4,
-      tags: ["devops", "cloud"],
-      archived: false,
     },
-    {
-      title: "Threat modelling a sprint",
-      who: ["Marieke Post"],
-      back: 5,
-      tags: ["security"],
-      archived: true,
-    },
+    { title: "Threat modelling a sprint", who: ["Marieke Post"], back: 5 },
     {
       title: "Vector search in Postgres",
       who: ["Sanne Bakker", "Jan de Vries"],
       back: 7,
-      tags: ["data", "ai"],
-      archived: true,
     },
-    {
-      title: "Design tokens end to end",
-      who: ["Marieke Post"],
-      back: 9,
-      tags: ["frontend"],
-      archived: false,
-    },
+    { title: "Design tokens end to end", who: ["Marieke Post"], back: 9 },
   ];
 
   for (const t of history) {
     const id = await createSubject(t.title);
     await setSubjectPeople(id, t.who);
-    await setSubjectTags(id, t.tags);
     const s = await createSession(monthsBack(t.back));
     await setSubjectSession(id, s);
-    if (t.archived) {
-      await updateSubjectDetails(id, {
-        title: t.title,
-        slidesUrl: "https://example.com/slides",
-        recordingUrl: "https://example.com/recording",
-      });
-    }
-    await setSubjectStatus(id, "presented");
   }
-
-  // Someone who has not presented in a long time, for the roulette pool.
-  const stale = await createSubject("Legacy Perl, a retrospective");
-  await setSubjectPeople(stale, ["Bram Wolters"]);
-  const staleSession = await createSession(monthsBack(20));
-  await setSubjectSession(stale, staleSession);
-  await setSubjectStatus(stale, "presented");
 }

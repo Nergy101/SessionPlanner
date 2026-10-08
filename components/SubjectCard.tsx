@@ -15,8 +15,7 @@ export function SubjectCard(
     linked?: boolean;
   },
 ) {
-  const titleClass =
-    "font-mono text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100";
+  const titleClass = "text-sm font-bold leading-snug text-text";
   return (
     <article class="ui-card">
       <div class="flex items-start justify-between gap-2">
@@ -24,22 +23,22 @@ export function SubjectCard(
           ? (
             <a
               href={`/subjects/${subject.id}`}
-              class={`${titleClass} no-underline hover:text-brand`}
+              class={`${titleClass} no-underline hover:underline`}
             >
               {subject.title}
             </a>
           )
           : <span class={titleClass}>{subject.title}</span>}
-        <StatusBadge status={subject.status} />
+        <StatusBadge stage={subject.stage} />
       </div>
 
       {subject.description && (
-        <p class="line-clamp-3 text-[0.82rem] text-slate-600 dark:text-slate-400">
+        <p class="line-clamp-3 text-[0.82rem] text-muted">
           {subject.description}
         </p>
       )}
 
-      <div class="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-slate-200 pt-2 dark:border-slate-700/70">
+      <div class="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-line pt-2">
         {subject.people.length
           ? (
             <div class="flex flex-wrap gap-1">

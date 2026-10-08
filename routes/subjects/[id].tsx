@@ -1,21 +1,14 @@
 import { HttpError, page } from "fresh";
 import { define } from "@/utils.ts";
 import {
-  STATUS_MEANING,
-  SUBJECT_STATUSES,
-  type SubjectStatus,
-  TECH_AREAS,
-} from "@/db/schema.ts";
-import {
   deleteSubject,
   getSubject,
-  linkLabel,
   replaceSubjectLinks,
-  setSubjectBounty,
   setSubjectPeople,
   setSubjectSession,
-  setSubjectStatus,
-  setSubjectTags,
+  STAGE_LABEL,
+  STAGE_MEANING,
+  STAGE_ORDER,
   updateSubjectDetails,
 } from "@/services/subjects.ts";
 import { formatShortDate, listSessions } from "@/services/sessions.ts";
@@ -76,25 +69,9 @@ export const handler = define.handlers({
         await setSubjectPeople(id, form.getAll("people").map(String));
         return ctx.redirect(here, 303);
 
-      case "tags":
-        await setSubjectTags(id, form.getAll("tags").map(String));
-        return ctx.redirect(here, 303);
-
-      case "bounty":
-        await setSubjectBounty(id, Number(form.get("bounty")));
-        return ctx.redirect(here, 303);
-
       case "session": {
         const value = String(form.get("session") ?? "");
         await setSubjectSession(id, value ? Number(value) : null);
-        return ctx.redirect(here, 303);
-      }
-
-      case "status": {
-        const value = String(form.get("status") ?? "");
-        if (SUBJECT_STATUSES.includes(value as SubjectStatus)) {
-          await setSubjectStatus(id, value as SubjectStatus);
-        }
         return ctx.redirect(here, 303);
       }
 
@@ -109,27 +86,49 @@ export const handler = define.handlers({
 
 export default define.page<typeof handler>(function SubjectDetail({ data }) {
   const { subject, sessions, saved } = data;
-  const showRecap = subject.status === "presented" ||
-    subject.status === "archived";
+  const showRecap = subject.stage === "presented";
+  const stageIndex = STAGE_ORDER.indexOf(subject.stage);
 
   return (
     <>
       <div class="mb-6">
         <p class="ui-eyebrow">
-          <a href="/subjects" class="no-underline hover:text-brand">subjects</a>
-          {" "}
+          <a href="/subjects" class="text-text no-underline hover:underline">
+            subjects
+          </a>{" "}
           / #{subject.id}
         </p>
-        <div class="mt-1 flex items-start justify-between gap-4">
-          <h1 class="text-2xl">{subject.title}</h1>
-          <StatusBadge status={subject.status} />
+        <div class="mt-1 flex flex-wrap items-start justify-between gap-4">
+          <h1 class="text-3xl tracking-tight">{subject.title}</h1>
+          <StatusBadge stage={subject.stage} />
         </div>
-        <p class="mt-1 text-slate-600 dark:text-slate-400">
-          {STATUS_MEANING[subject.status]}
-        </p>
+        <p class="mt-1 text-muted">{STAGE_MEANING[subject.stage]}</p>
       </div>
 
-      <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
+      {/* Stage stepper: ✓ for completed, a shadow on the current stage, dashed and muted for the future. */}
+      <ol class="mb-6 flex flex-wrap gap-2" aria-label="Stage">
+        {STAGE_ORDER.map((s, i) => {
+          const current = i === stageIndex;
+          const done = i < stageIndex;
+          const cls = current
+            ? `stage-${s} ui-badge ui-badge-${s} shadow-[var(--shadow-md)]`
+            : done
+            ? "ui-badge bg-surface-2 text-text border border-line"
+            : "ui-badge border border-dashed border-line text-muted";
+          return (
+            <li
+              key={s}
+              class={cls}
+              aria-current={current ? "step" : undefined}
+            >
+              {done ? "✓ " : ""}
+              {STAGE_LABEL[s]}
+            </li>
+          );
+        })}
+      </ol>
+
+      <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,340px)]">
         {/* Enter in any single-line field here submits, because it's a real form. */}
         <form method="post" class="flex flex-col gap-4">
           <input type="hidden" name="intent" value="details" />
@@ -151,7 +150,6 @@ export default define.page<typeof handler>(function SubjectDetail({ data }) {
                 id="description"
                 name="description"
                 rows={6}
-                autofocus
                 placeholder="What is it about, and why would the team care?"
                 class="ui-textarea"
               >
@@ -160,7 +158,7 @@ export default define.page<typeof handler>(function SubjectDetail({ data }) {
             </div>
 
             <div>
-              <label class="ui-label">Links</label>
+              <span class="ui-label">Links</span>
               <LinkEditor
                 initial={subject.links.map((l) => ({
                   url: l.url,
@@ -213,32 +211,16 @@ export default define.page<typeof handler>(function SubjectDetail({ data }) {
             </div>
           )}
 
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center gap-3">
             <button type="submit" class="ui-btn ui-btn-primary">save</button>
             {saved
               ? <span class="ui-badge ui-badge-presented">saved</span>
               : (
                 <span class="ui-hint">
-                  enter from any single-line field also saves
+                  Enter in any single-line field also saves · Esc reverts
                 </span>
               )}
           </div>
-
-          {subject.links.length > 0 && (
-            <div class="flex flex-wrap gap-1.5">
-              {subject.links.map((l) => (
-                <a
-                  key={l.id}
-                  href={l.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="ui-chip"
-                >
-                  {linkLabel(l)} ↗
-                </a>
-              ))}
-            </div>
-          )}
         </form>
 
         <aside class="flex flex-col gap-4">
@@ -251,71 +233,14 @@ export default define.page<typeof handler>(function SubjectDetail({ data }) {
               autoSubmit
             />
             {subject.people.length === 0 && (
-              <p class="mt-2 text-[0.78rem] text-slate-600 dark:text-slate-400">
+              <p class="ui-hint mt-2">
                 Adding the first speaker moves this to{" "}
-                <strong>assigned</strong>.
+                <strong>has speaker</strong>.
               </p>
             )}
             <noscript>
               <button type="submit" class="ui-btn mt-2">save speakers</button>
             </noscript>
-          </form>
-
-          <form method="post" class="ui-panel">
-            <input type="hidden" name="intent" value="tags" />
-            <h3 class="mb-3">areas</h3>
-            <p class="mb-2 text-[0.78rem] text-slate-600 dark:text-slate-400">
-              Drives the coverage radar on{" "}
-              <a href="/standings">standings</a>. Tick what this actually
-              covers.
-            </p>
-            <div class="mb-3 grid grid-cols-2 gap-x-2">
-              {TECH_AREAS.map((area) => (
-                <label
-                  key={area}
-                  class="flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 font-mono text-[0.75rem] hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  <input
-                    type="checkbox"
-                    name="tags"
-                    value={area}
-                    checked={subject.tags.includes(area)}
-                    class="accent-brand"
-                  />
-                  {area}
-                </label>
-              ))}
-            </div>
-            <button type="submit" class="ui-btn ui-btn-sm">save areas</button>
-          </form>
-
-          <form method="post" class="ui-panel">
-            <input type="hidden" name="intent" value="bounty" />
-            <h3 class="mb-3">bounty</h3>
-            <p class="mb-2 text-[0.78rem] text-slate-600 dark:text-slate-400">
-              Extra XP for whoever claims this and actually presents it. Only
-              paid out on delivery.
-            </p>
-            <div class="flex items-center gap-2">
-              <input
-                type="number"
-                name="bounty"
-                min="0"
-                step="5"
-                value={subject.bounty}
-                aria-label="Bounty in XP"
-                class="ui-input w-24"
-              />
-              <span class="ui-hint">XP</span>
-              <button type="submit" class="ui-btn ui-btn-sm ml-auto">
-                set
-              </button>
-            </div>
-            {subject.bounty > 0 && subject.people.length > 0 && (
-              <p class="ui-hint mt-2">
-                Claimed — pays out when it moves to presented.
-              </p>
-            )}
           </form>
 
           <form method="post" class="ui-panel">
@@ -337,26 +262,11 @@ export default define.page<typeof handler>(function SubjectDetail({ data }) {
               ]}
             />
             {sessions.length === 0 && (
-              <p class="mt-2 text-[0.78rem] text-slate-600 dark:text-slate-400">
-                No sessions yet — <a href="/sessions">create one</a>.
+              <p class="ui-hint mt-2">
+                No sessions yet —{" "}
+                <a href="/sessions" class="underline">create one</a>.
               </p>
             )}
-          </form>
-
-          <form method="post" class="ui-panel">
-            <input type="hidden" name="intent" value="status" />
-            <h3 class="mb-3">status</h3>
-            <AutoSubmitSelect
-              name="status"
-              value={subject.status}
-              ariaLabel="Status"
-              class="ui-select"
-              options={SUBJECT_STATUSES.map((s) => ({ value: s, label: s }))}
-            />
-            <p class="mt-2 text-[0.78rem] text-slate-600 dark:text-slate-400">
-              Idea, assigned and planned follow the speakers and the date on
-              their own. Presented and archived stay put until you change them.
-            </p>
           </form>
 
           <form method="post" class="ui-panel">
@@ -366,9 +276,7 @@ export default define.page<typeof handler>(function SubjectDetail({ data }) {
               label="delete subject"
               confirmLabel="yes, delete it"
             />
-            <p class="mt-2 text-[0.78rem] text-slate-600 dark:text-slate-400">
-              Archiving keeps the record; deleting does not.
-            </p>
+            <p class="ui-hint mt-2">Deleting is permanent.</p>
           </form>
         </aside>
       </div>

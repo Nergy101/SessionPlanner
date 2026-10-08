@@ -1,16 +1,6 @@
 import { type Kysely, sql } from "@kysely/kysely";
 import { db } from "@/db/db.ts";
-import {
-  type Database,
-  isTechArea,
-  type Person,
-  STATUS_BY_ORDER,
-  STATUS_DISPLAY_ORDER,
-  STATUS_ORDER,
-  type SubjectLink,
-  type SubjectStatus,
-  type TechArea,
-} from "@/db/schema.ts";
+import { type Database, type Person, type SubjectLink } from "@/db/schema.ts";
 import { getOrCreatePerson, normalizeName } from "./people.ts";
 
 /** A subject with the things every view of it needs. */
@@ -18,7 +8,7 @@ export interface Subject {
   id: number;
   title: string;
   description: string | null;
-  status: SubjectStatus;
+  stage: Stage;
   sessionId: number | null;
   sessionDate: string | null;
   slidesUrl: string | null;
@@ -26,69 +16,123 @@ export interface Subject {
   recapNotes: string | null;
   people: Person[];
   links: SubjectLink[];
-  tags: TechArea[];
-  /** XP promised to whoever claims and presents this. 0 means no bounty. */
-  bounty: number;
+  /** When `stage` last actually changed; see idleDays(). */
+  stageChangedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface SubjectFilter {
   text?: string;
-  status?: SubjectStatus;
+  stage?: Stage;
   personId?: number;
-  /** Archived is hidden unless you go looking for it. */
-  includeArchived?: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// The status ladder
+// The pipeline stage
 // ---------------------------------------------------------------------------
 
 /**
- * Idea → Assigned → Planned are derived from two facts: does it have a speaker, and
- * does it have a date. Presented and Archived are sticky — once set, only an explicit
- * status change moves them, so tidying up never rewrites history.
+ * Idea → Speaker → Planned → Presented. Nothing is stored for this: it is
+ * recomputed on every read from whether a subject has a speaker and whether
+ * the session it sits on (if any) is in the past or the future. There is no
+ * archive state and no manual override — tidying up never happens, because
+ * there is nothing to tidy.
  */
-export function deriveStatus(
-  current: SubjectStatus,
-  hasPeople: boolean,
-  hasSession: boolean,
-): SubjectStatus {
-  if (current === "presented" || current === "archived") return current;
-  if (hasSession) return "planned";
-  return hasPeople ? "assigned" : "idea";
+export type Stage = "idea" | "speaker" | "planned" | "presented";
+
+export const STAGE_ORDER: readonly Stage[] = [
+  "idea",
+  "speaker",
+  "planned",
+  "presented",
+];
+
+export const STAGE_LABEL: Record<Stage, string> = {
+  idea: "idea",
+  speaker: "has speaker",
+  planned: "planned",
+  presented: "presented",
+};
+
+export const STAGE_MEANING: Record<Stage, string> = {
+  idea: "A topic with nobody on it yet — it needs a speaker.",
+  speaker: "Someone has agreed to present it, but it has no date yet.",
+  planned: "Scheduled onto a session date.",
+  presented: "It happened. Add slides, a recording or notes.",
+};
+
+/** The date in Europe/Amsterdam, as yyyy-mm-dd — stage boundaries run on this. */
+export function amsterdamToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Amsterdam" })
+    .format(new Date());
 }
 
-/** Recompute and persist the ladder position after a people/session change. */
-async function recomputeStatus(
+/**
+ * The whole pipeline in one pure function. A session date wins over a
+ * speaker either way: past beats everything into presented, future beats a
+ * speaker into planned. Only with no session does having a speaker matter.
+ */
+export function deriveStage(
+  hasSpeaker: boolean,
+  sessionDate: string | null,
+): Stage {
+  if (sessionDate !== null) {
+    return sessionDate < amsterdamToday() ? "presented" : "planned";
+  }
+  return hasSpeaker ? "speaker" : "idea";
+}
+
+/** The subject's current derived stage, read fresh inside a transaction. */
+export async function computeStage(
   trx: Kysely<Database>,
   subjectId: number,
-): Promise<void> {
+): Promise<Stage> {
   const row = await trx
     .selectFrom("subjects")
-    .select(["status", "session_id"])
-    .where("id", "=", subjectId)
+    .leftJoin("sessions", "sessions.id", "subjects.session_id")
+    .select(["sessions.date as session_date"])
+    .where("subjects.id", "=", subjectId)
     .executeTakeFirst();
-  if (!row) return;
 
-  const peopleCount = await trx
+  const hasSpeaker = await trx
     .selectFrom("subject_people")
     .select("person_id")
     .where("subject_id", "=", subjectId)
     .executeTakeFirst();
 
-  const next = deriveStatus(
-    STATUS_BY_ORDER[row.status],
-    peopleCount !== undefined,
-    row.session_id !== null,
-  );
+  return deriveStage(hasSpeaker !== undefined, row?.session_date ?? null);
+}
 
-  await trx
-    .updateTable("subjects")
-    .set({ status: STATUS_ORDER[next], updated_at: sql`current_timestamp` })
-    .where("id", "=", subjectId)
-    .execute();
+/**
+ * Stamps stage_changed_at if (and only if) `mutate` actually moved the
+ * subject to a different stage.
+ */
+export async function withStageTracking(
+  trx: Kysely<Database>,
+  subjectId: number,
+  mutate: () => Promise<void>,
+): Promise<void> {
+  const before = await computeStage(trx, subjectId);
+  await mutate();
+  const after = await computeStage(trx, subjectId);
+  if (after !== before) {
+    await trx
+      .updateTable("subjects")
+      .set({ stage_changed_at: sql`current_timestamp` })
+      .where("id", "=", subjectId)
+      .execute();
+  }
+}
+
+/** Whole days since the stage last changed, falling back to when it was created. */
+export function idleDays(
+  subject: Pick<Subject, "stageChangedAt" | "createdAt">,
+): number {
+  const since = subject.stageChangedAt ?? subject.createdAt;
+  // SQLite's current_timestamp is `YYYY-MM-DD HH:MM:SS` UTC, with no offset.
+  const changedAtMs = new Date(`${since.replace(" ", "T")}Z`).getTime();
+  return Math.floor((Date.now() - changedAtMs) / 86_400_000);
 }
 
 // ---------------------------------------------------------------------------
@@ -101,13 +145,12 @@ async function hydrate(
     id: number;
     title: string;
     description: string | null;
-    status: number;
     session_id: number | null;
     session_date: string | null;
     slides_url: string | null;
     recording_url: string | null;
     recap_notes: string | null;
-    bounty: number;
+    stage_changed_at: string | null;
     created_at: string;
     updated_at: string;
   }>,
@@ -135,57 +178,38 @@ async function hydrate(
     .orderBy("id")
     .execute();
 
-  const tagRows = await db
-    .selectFrom("subject_tags")
-    .selectAll()
-    .where("subject_id", "in", ids)
-    .orderBy("tag")
-    .execute();
+  const peopleBySubject = new Map<number, Person[]>();
+  for (const p of peopleRows) {
+    const list = peopleBySubject.get(p.subject_id) ?? [];
+    list.push({ id: p.id, name: p.name, created_at: p.created_at });
+    peopleBySubject.set(p.subject_id, list);
+  }
 
   const byId = new Map<number, Subject>(
-    rows.map((r) => [r.id, {
-      id: r.id,
-      title: r.title,
-      description: r.description,
-      status: STATUS_BY_ORDER[r.status],
-      sessionId: r.session_id,
-      sessionDate: r.session_date,
-      slidesUrl: r.slides_url,
-      recordingUrl: r.recording_url,
-      recapNotes: r.recap_notes,
-      people: [],
-      links: [],
-      tags: [],
-      bounty: r.bounty,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    }]),
+    rows.map((r) => {
+      const people = peopleBySubject.get(r.id) ?? [];
+      return [r.id, {
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        stage: deriveStage(people.length > 0, r.session_date),
+        sessionId: r.session_id,
+        sessionDate: r.session_date,
+        slidesUrl: r.slides_url,
+        recordingUrl: r.recording_url,
+        recapNotes: r.recap_notes,
+        people,
+        links: [],
+        stageChangedAt: r.stage_changed_at,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      }];
+    }),
   );
 
-  for (const p of peopleRows) {
-    byId.get(p.subject_id)?.people.push({
-      id: p.id,
-      name: p.name,
-      created_at: p.created_at,
-    });
-  }
   for (const l of linkRows) byId.get(l.subject_id)?.links.push(l);
-  for (const t of tagRows) byId.get(t.subject_id)?.tags.push(t.tag as TechArea);
 
   return rows.map((r) => byId.get(r.id)!);
-}
-
-/**
- * ORDER BY over the presentational rank rather than the stored status integer.
- * Built from STATUS_DISPLAY_ORDER so the two can never drift apart.
- */
-function displayRank() {
-  const whens = STATUS_DISPLAY_ORDER.map((status, rank) =>
-    sql`when ${sql.lit(STATUS_ORDER[status])} then ${sql.lit(rank)}`
-  );
-  return sql`case "subjects"."status" ${sql.join(whens, sql` `)} else ${
-    sql.lit(STATUS_DISPLAY_ORDER.length)
-  } end`;
 }
 
 function baseQuery() {
@@ -196,29 +220,27 @@ function baseQuery() {
       "subjects.id",
       "subjects.title",
       "subjects.description",
-      "subjects.status",
       "subjects.session_id",
       "sessions.date as session_date",
       "subjects.slides_url",
       "subjects.recording_url",
       "subjects.recap_notes",
-      "subjects.bounty",
+      "subjects.stage_changed_at",
       "subjects.created_at",
       "subjects.updated_at",
     ]);
 }
 
+/**
+ * Stage isn't a column, so filtering by it happens after hydration. At the
+ * scale this tool runs at (one organiser's backlog) that costs nothing, and
+ * it keeps deriveStage() the single place the pipeline logic lives.
+ */
 export async function listSubjects(
   filter: SubjectFilter = {},
 ): Promise<Subject[]> {
   let q = baseQuery();
 
-  if (!filter.includeArchived && filter.status !== "archived") {
-    q = q.where("subjects.status", "!=", STATUS_ORDER.archived);
-  }
-  if (filter.status) {
-    q = q.where("subjects.status", "=", STATUS_ORDER[filter.status]);
-  }
   if (filter.personId !== undefined) {
     q = q.where(
       "subjects.id",
@@ -240,14 +262,9 @@ export async function listSubjects(
     );
   }
 
-  // Attention order (planned, assigned, idea, presented, archived), then most
-  // recently touched within each group.
-  const rows = await q
-    .orderBy(displayRank())
-    .orderBy("subjects.updated_at", "desc")
-    .execute();
-
-  return hydrate(rows);
+  const rows = await q.orderBy("subjects.updated_at", "desc").execute();
+  const list = await hydrate(rows);
+  return filter.stage ? list.filter((s) => s.stage === filter.stage) : list;
 }
 
 export async function getSubject(id: number): Promise<Subject | undefined> {
@@ -257,19 +274,19 @@ export async function getSubject(id: number): Promise<Subject | undefined> {
   return (await hydrate([row]))[0];
 }
 
-/** Unscheduled, not archived, not already presented — the pool to schedule from. */
+/** Unscheduled subjects — the pool a session's "add subject" can draw from. */
 export async function listSchedulable(): Promise<Subject[]> {
   const rows = await baseQuery()
     .where("subjects.session_id", "is", null)
-    .where("subjects.status", "not in", [
-      STATUS_ORDER.archived,
-      STATUS_ORDER.presented,
-    ])
-    .orderBy("subjects.status", "desc") // assigned (1) before idea (0)
     .orderBy("subjects.updated_at", "desc")
     .execute();
 
-  return hydrate(rows);
+  const list = await hydrate(rows);
+  // Speaker-ready subjects first; Array#sort is stable so each group keeps
+  // its own updated_at order.
+  return [...list].sort((a, b) =>
+    Number(b.stage === "speaker") - Number(a.stage === "speaker")
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -291,7 +308,6 @@ export async function createSubject(
     .values({
       title: title.trim(),
       session_id: sessionId ?? null,
-      status: sessionId ? STATUS_ORDER.planned : STATUS_ORDER.idea,
     })
     .returning("id")
     .executeTakeFirstOrThrow();
@@ -353,51 +369,34 @@ export async function setSubjectPeople(
   const people: Person[] = [];
   for (const name of wanted) people.push(await getOrCreatePerson(name));
 
-  await db.transaction().execute(async (trx) => {
-    await trx.deleteFrom("subject_people").where("subject_id", "=", id)
-      .execute();
-    if (people.length) {
-      await trx
-        .insertInto("subject_people")
-        .values(people.map((p) => ({ subject_id: id, person_id: p.id })))
+  await db.transaction().execute((trx) =>
+    withStageTracking(trx, id, async () => {
+      await trx.deleteFrom("subject_people").where("subject_id", "=", id)
         .execute();
-    }
-    await recomputeStatus(trx, id);
-  });
+      if (people.length) {
+        await trx
+          .insertInto("subject_people")
+          .values(people.map((p) => ({ subject_id: id, person_id: p.id })))
+          .execute();
+      }
+    })
+  );
 }
 
-/** Pass null to unschedule; the ladder falls back to assigned or idea. */
+/** Pass null to unschedule; the stage falls back to speaker or idea. */
 export async function setSubjectSession(
   id: number,
   sessionId: number | null,
 ): Promise<void> {
-  await db.transaction().execute(async (trx) => {
-    await trx
-      .updateTable("subjects")
-      .set({ session_id: sessionId })
-      .where("id", "=", id)
-      .execute();
-    await recomputeStatus(trx, id);
-  });
-}
-
-/** The manual override, and the only way into or out of the sticky states. */
-export async function setSubjectStatus(
-  id: number,
-  status: SubjectStatus,
-): Promise<void> {
-  await db.transaction().execute(async (trx) => {
-    await trx
-      .updateTable("subjects")
-      .set({ status: STATUS_ORDER[status], updated_at: sql`current_timestamp` })
-      .where("id", "=", id)
-      .execute();
-
-    // Leaving a sticky state hands control back to the ladder.
-    if (status !== "presented" && status !== "archived") {
-      await recomputeStatus(trx, id);
-    }
-  });
+  await db.transaction().execute((trx) =>
+    withStageTracking(trx, id, async () => {
+      await trx
+        .updateTable("subjects")
+        .set({ session_id: sessionId })
+        .where("id", "=", id)
+        .execute();
+    })
+  );
 }
 
 export async function replaceSubjectLinks(
@@ -436,42 +435,6 @@ export async function findSubjectByTitle(
   return (await hydrate([row]))[0];
 }
 
-/** Replace a subject's tech-area tags. Unknown areas are ignored. */
-export async function setSubjectTags(
-  id: number,
-  tags: string[],
-): Promise<void> {
-  const wanted = [...new Set(tags.filter(isTechArea))];
-
-  await db.transaction().execute(async (trx) => {
-    await trx.deleteFrom("subject_tags").where("subject_id", "=", id).execute();
-    if (wanted.length) {
-      await trx
-        .insertInto("subject_tags")
-        .values(wanted.map((tag) => ({ subject_id: id, tag })))
-        .execute();
-    }
-    await trx
-      .updateTable("subjects")
-      .set({ updated_at: sql`current_timestamp` })
-      .where("id", "=", id)
-      .execute();
-  });
-}
-
-/** Put XP on an unclaimed subject, to tempt someone into taking it. */
-export async function setSubjectBounty(
-  id: number,
-  bounty: number,
-): Promise<void> {
-  const value = Number.isFinite(bounty) ? Math.max(0, Math.trunc(bounty)) : 0;
-  await db
-    .updateTable("subjects")
-    .set({ bounty: value, updated_at: sql`current_timestamp` })
-    .where("id", "=", id)
-    .execute();
-}
-
 export async function deleteSubject(id: number): Promise<void> {
   await db.deleteFrom("subjects").where("id", "=", id).execute();
 }
@@ -490,14 +453,14 @@ export function linkLabel(link: SubjectLink): string {
 // Sorting the subjects table
 // ---------------------------------------------------------------------------
 
-export const SORT_KEYS = [
+export type SortKey = "title" | "speakers" | "stage" | "session";
+
+export const SORT_KEYS: readonly SortKey[] = [
   "title",
   "speakers",
-  "status",
+  "stage",
   "session",
-  "bounty",
-] as const;
-export type SortKey = typeof SORT_KEYS[number];
+];
 export type SortDir = "asc" | "desc";
 
 export function isSortKey(value: string): value is SortKey {
@@ -520,12 +483,10 @@ export function sortSubjects(
         return s.title.toLowerCase();
       case "speakers":
         return s.people[0]?.name.toLowerCase() ?? null;
-      case "status":
-        return STATUS_ORDER[s.status];
+      case "stage":
+        return STAGE_ORDER.indexOf(s.stage);
       case "session":
         return s.sessionDate;
-      case "bounty":
-        return s.bounty;
     }
   };
 

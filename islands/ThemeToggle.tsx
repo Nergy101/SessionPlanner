@@ -1,18 +1,18 @@
 import { useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
 
-/** Reads and writes the dark-mode class on <html>. */
+/** Reads and writes `data-theme` on <html>. The first paint is set by the head script in routes/_app.tsx. */
 export function ThemeToggle() {
-  const dark = useSignal(true);
+  const dark = useSignal(false);
 
   useEffect(() => {
-    dark.value = document.documentElement.classList.contains("dark");
+    dark.value = document.documentElement.getAttribute("data-theme") === "dark";
   }, []);
 
   const apply = (on: boolean) => {
-    document.documentElement.classList.toggle("dark", on);
+    document.documentElement.setAttribute("data-theme", on ? "dark" : "light");
     try {
-      localStorage.setItem("sp-theme", on ? "1" : "0");
+      localStorage.setItem("sp-theme", on ? "dark" : "light");
     } catch { /* private mode */ }
   };
 

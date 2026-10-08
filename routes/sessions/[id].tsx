@@ -4,15 +4,13 @@ import {
   deleteSession,
   formatLongDate,
   getSession,
-  isPast,
-  markAllPresented,
+  SESSION_SLOTS,
   updateSession,
 } from "@/services/sessions.ts";
 import {
   createSubject,
   listSchedulable,
   setSubjectSession,
-  setSubjectStatus,
 } from "@/services/subjects.ts";
 import { StatusBadge } from "@/components/StatusBadge.tsx";
 import QuickAdd from "@/islands/QuickAdd.tsx";
@@ -71,18 +69,6 @@ export const handler = define.handlers({
         return ctx.redirect(here, 303);
       }
 
-      case "present": {
-        const subjectId = Number(form.get("subject"));
-        if (Number.isFinite(subjectId)) {
-          await setSubjectStatus(subjectId, "presented");
-        }
-        return ctx.redirect(here, 303);
-      }
-
-      case "presentAll":
-        await markAllPresented(id);
-        return ctx.redirect(here, 303);
-
       case "delete":
         await deleteSession(id);
         return ctx.redirect("/sessions", 303);
@@ -94,84 +80,78 @@ export const handler = define.handlers({
 
 export default define.page<typeof handler>(function SessionDetail({ data }) {
   const { session, available, saved } = data;
-  const anyPlanned = session.subjects.some((s) => s.status === "planned");
+  const open = Math.max(0, SESSION_SLOTS - session.subjects.length);
 
   return (
     <>
       <div class="mb-6">
         <p class="ui-eyebrow">
-          <a href="/sessions" class="no-underline hover:text-brand">sessions</a>
-          {" "}
+          <a href="/sessions" class="text-text no-underline hover:underline">
+            sessions
+          </a>{" "}
           / #{session.id}
         </p>
-        <div class="mt-1 flex items-start justify-between gap-4">
-          <h1 class="text-2xl">{formatLongDate(session.date)}</h1>
-          {isPast(session.date) && anyPlanned && (
-            <form method="post">
-              <input type="hidden" name="intent" value="presentAll" />
-              <button type="submit" class="ui-btn ui-btn-primary">
-                mark all presented
-              </button>
-            </form>
-          )}
-        </div>
-        <p class="mt-1 text-slate-600 dark:text-slate-400">
-          {session.subjects.length}{" "}
-          subject{session.subjects.length === 1 ? "" : "s"} planned.
+        <h1 class="mt-1 text-3xl tracking-tight">
+          {formatLongDate(session.date)}
+        </h1>
+        <p class="mt-1 text-muted">
+          {session.subjects.length}/{SESSION_SLOTS} slots filled
+          {open > 0 ? ` · ${open} open` : ""}.
         </p>
       </div>
 
-      <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
-        <div class="flex flex-col gap-2">
-          {session.subjects.length === 0
-            ? (
-              <div class="ui-empty">
-                Nothing planned yet. Add one from the panel on the right.
-              </div>
-            )
-            : session.subjects.map((s) => (
-              <div key={s.id} class="ui-card">
-                <div class="flex items-start justify-between gap-2">
+      <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,340px)]">
+        <ol class="flex flex-col gap-3">
+          {session.subjects.length === 0 && (
+            <li class="ui-empty">
+              Nothing planned yet. Add one from the panel on the right.
+            </li>
+          )}
+          {session.subjects.map((s, i) => (
+            <li key={s.id} class="ui-card">
+              <div class="flex flex-wrap items-start justify-between gap-2">
+                <div class="flex min-w-0 items-baseline gap-2">
+                  <span class="ui-hint font-bold">{i + 1}.</span>
                   <a
                     href={`/subjects/${s.id}`}
-                    class="font-mono text-sm font-semibold text-slate-900 no-underline hover:text-brand dark:text-slate-100"
+                    class="font-bold text-text no-underline hover:underline"
                   >
                     {s.title}
                   </a>
-                  <StatusBadge status={s.status} />
                 </div>
-
-                <div class="flex flex-wrap gap-1">
-                  {s.people.length
-                    ? s.people.map((p) => (
-                      <span key={p.id} class="ui-chip ui-chip-person">
-                        {p.name}
-                      </span>
-                    ))
-                    : <span class="ui-badge ui-badge-danger">no speaker</span>}
-                </div>
-
-                <div class="mt-auto flex flex-wrap items-center gap-2 border-t border-dashed border-slate-200 pt-2 dark:border-slate-700/70">
-                  {s.status === "planned" && (
-                    <form method="post">
-                      <input type="hidden" name="intent" value="present" />
-                      <input type="hidden" name="subject" value={s.id} />
-                      <button type="submit" class="ui-btn ui-btn-sm">
-                        mark presented
-                      </button>
-                    </form>
-                  )}
-                  <form method="post">
-                    <input type="hidden" name="intent" value="unassign" />
-                    <input type="hidden" name="subject" value={s.id} />
-                    <button type="submit" class="ui-btn ui-btn-sm ui-btn-ghost">
-                      remove from this date
-                    </button>
-                  </form>
-                </div>
+                <StatusBadge stage={s.stage} />
               </div>
-            ))}
-        </div>
+
+              <div class="flex flex-wrap gap-1">
+                {s.people.length
+                  ? s.people.map((p) => (
+                    <span key={p.id} class="ui-chip ui-chip-person">
+                      {p.name}
+                    </span>
+                  ))
+                  : <span class="ui-badge ui-badge-danger">no speaker</span>}
+              </div>
+
+              <div class="mt-auto flex flex-wrap items-center gap-2 border-t border-dashed border-line pt-2">
+                <form method="post">
+                  <input type="hidden" name="intent" value="unassign" />
+                  <input type="hidden" name="subject" value={s.id} />
+                  <button type="submit" class="ui-btn ui-btn-sm ui-btn-ghost">
+                    remove from this date
+                  </button>
+                </form>
+              </div>
+            </li>
+          ))}
+          {Array.from({ length: open }, (_, i) => (
+            <li
+              key={`open-${i}`}
+              class="ui-hint border border-dashed border-line px-4 py-3"
+            >
+              + open slot
+            </li>
+          ))}
+        </ol>
 
         <aside class="flex flex-col gap-4">
           <div class="ui-panel flex flex-col gap-3">
@@ -198,11 +178,7 @@ export default define.page<typeof handler>(function SessionDetail({ data }) {
                   />
                 </form>
               )
-              : (
-                <p class="text-[0.78rem] text-slate-600 dark:text-slate-400">
-                  Nothing unscheduled left in the pool.
-                </p>
-              )}
+              : <p class="ui-hint">Nothing unscheduled left in the pool.</p>}
 
             <QuickAdd
               action={`/sessions/${session.id}`}
@@ -241,7 +217,7 @@ export default define.page<typeof handler>(function SessionDetail({ data }) {
               </textarea>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
               <button type="submit" class="ui-btn ui-btn-primary">save</button>
               {saved && <span class="ui-badge ui-badge-presented">saved</span>}
             </div>
@@ -254,8 +230,8 @@ export default define.page<typeof handler>(function SessionDetail({ data }) {
               label="delete session"
               confirmLabel="yes, delete it"
             />
-            <p class="mt-2 text-[0.78rem] text-slate-600 dark:text-slate-400">
-              Its subjects survive — they drop back to assigned or idea.
+            <p class="ui-hint mt-2">
+              Its subjects survive and go back to the pool, unscheduled.
             </p>
           </form>
         </aside>

@@ -19,12 +19,12 @@ export const DEFAULT_DB_PATH = path.join(
   "session-planner.db",
 );
 
-/** Where this process will actually read and write. Tests and the e2e harness set DB_PATH. */
+/** Where this process will actually read and write. Tests set DB_PATH. */
 export const DB_PATH = Deno.env.get("DB_PATH") ?? DEFAULT_DB_PATH;
 
 /**
  * True when `candidate` is the real local database rather than a throwaway.
- * Used by the seed and e2e entry points to refuse to touch your data.
+ * Used by the seed entry point to refuse to touch your data.
  */
 export function isDefaultDb(candidate: string): boolean {
   return path.resolve(candidate) === DEFAULT_DB_PATH;

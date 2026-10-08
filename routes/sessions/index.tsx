@@ -6,6 +6,8 @@ import {
   isPast,
   listSessions,
   nextThursday,
+  type Session,
+  SESSION_SLOTS,
 } from "@/services/sessions.ts";
 import { StatusBadge } from "@/components/StatusBadge.tsx";
 import NewSession from "@/islands/NewSession.tsx";
@@ -76,79 +78,103 @@ export default define.page<typeof handler>(function Sessions({ data }) {
   const { upcoming, past, defaultDate, pool, people } = data;
 
   const Row = (
-    { session }: { session: typeof upcoming[number] },
-  ) => (
-    <div
-      class={`mb-2 flex gap-4 rounded-lg border border-dashed border-slate-300 bg-white p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md dark:border-slate-600 dark:bg-slate-900 ${
-        isPast(session.date) ? "opacity-75" : ""
-      }`}
-    >
-      <div class="flex shrink-0 basis-17 flex-col items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-800">
-        <span class="text-2xl font-bold leading-none text-slate-900 dark:text-slate-100">
-          {Number(session.date.slice(8, 10))}
-        </span>
-        <span class="text-[0.62rem] uppercase tracking-widest text-slate-600 dark:text-slate-400">
-          {new Date(`${session.date}T00:00:00`).toLocaleDateString("en-GB", {
-            month: "short",
-            year: "numeric",
-          })}
-        </span>
-      </div>
-
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center justify-between gap-4">
+    { session, past: isOld }: { session: Session; past: boolean },
+  ) => {
+    const open = Math.max(0, SESSION_SLOTS - session.subjects.length);
+    return (
+      <article
+        class={`ui-card ${isOld ? "opacity-75" : ""}`}
+      >
+        <div class="flex gap-3">
+          {/* The date block: yellow when it is the next thing on the calendar, plain otherwise. */}
           <a
             href={`/sessions/${session.id}`}
-            class="font-mono text-sm font-semibold text-slate-900 no-underline hover:text-brand dark:text-slate-100"
+            class={`flex w-[58px] shrink-0 flex-col items-center justify-center border border-line py-1.5 no-underline ${
+              isOld ? "bg-surface-2 text-text" : "bg-primary text-[#111]"
+            }`}
+            aria-label={`Open ${formatLongDate(session.date)}`}
           >
-            {formatLongDate(session.date)}
+            <span class="text-2xl font-bold leading-none">
+              {Number(session.date.slice(8, 10))}
+            </span>
+            <span class="text-[0.62rem] uppercase tracking-widest">
+              {new Date(`${session.date}T00:00:00`).toLocaleDateString(
+                "en-GB",
+                {
+                  month: "short",
+                  year: "numeric",
+                },
+              )}
+            </span>
           </a>
-          <span class="ui-badge ui-badge-idea">
-            {session.subjects.length}{" "}
-            subject{session.subjects.length === 1 ? "" : "s"}
-          </span>
-        </div>
 
-        {session.notes && (
-          <p class="mt-1 truncate text-[0.8rem] text-slate-600 dark:text-slate-400">
-            {session.notes}
-          </p>
-        )}
-
-        {session.subjects.length > 0 && (
-          <div class="mt-2 flex flex-wrap gap-1.5">
-            {session.subjects.map((s) => (
-              <a key={s.id} href={`/subjects/${s.id}`} class="ui-chip">
-                <StatusBadge status={s.status} />
-                {s.title}
-              </a>
-            ))}
-          </div>
-        )}
-        {session.links.length > 0 && (
-          <div class="mt-1.5 flex flex-wrap gap-1.5">
-            {session.links.map((l) => (
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center justify-between gap-2">
               <a
-                key={l.id}
-                href={l.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="ui-chip"
+                href={`/sessions/${session.id}`}
+                class="font-bold text-text no-underline hover:underline"
               >
-                {linkLabel(l)} ↗
+                {formatLongDate(session.date)}
               </a>
-            ))}
+              <span class="ui-hint">
+                {session.subjects.length}/{SESSION_SLOTS} slots
+              </span>
+            </div>
+
+            {session.notes && (
+              <p class="ui-hint mt-1 truncate">{session.notes}</p>
+            )}
+
+            <ul class="mt-2 flex flex-col gap-1.5">
+              {session.subjects.map((s) => (
+                <li key={s.id} class="flex min-w-0 items-center gap-2">
+                  <StatusBadge stage={s.stage} />
+                  <a
+                    href={`/subjects/${s.id}`}
+                    class="min-w-0 truncate text-text no-underline hover:underline"
+                  >
+                    {s.title}
+                  </a>
+                </li>
+              ))}
+              {Array.from({ length: open }, (_, i) => (
+                <li key={`open-${i}`}>
+                  <a
+                    href={`/sessions/${session.id}`}
+                    class="ui-hint block border border-dashed border-line px-2 py-1 no-underline hover:text-text"
+                  >
+                    + open slot
+                  </a>
+                </li>
+              ))}
+            </ul>
+
+            {session.links.length > 0 && (
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                {session.links.map((l) => (
+                  <a
+                    key={l.id}
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="ui-chip"
+                  >
+                    {linkLabel(l)} ↗
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-    </div>
-  );
+        </div>
+      </article>
+    );
+  };
 
   return (
     <>
       <div class="mb-6">
-        <h1 class="text-2xl">sessions</h1>
-        <p class="mt-1 max-w-2xl text-slate-600 dark:text-slate-400">
+        <h1 class="text-3xl tracking-tight">sessions</h1>
+        <p class="mt-1 max-w-2xl text-muted">
           The dates, and what's planned for each one.
         </p>
       </div>
@@ -164,7 +190,11 @@ export default define.page<typeof handler>(function Sessions({ data }) {
           <h2>upcoming</h2>
         </div>
         {upcoming.length
-          ? upcoming.map((s) => <Row key={s.id} session={s} />)
+          ? (
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {upcoming.map((s) => <Row key={s.id} session={s} past={false} />)}
+            </div>
+          )
           : (
             <div class="ui-empty">
               No sessions scheduled. Pick a date above.
@@ -178,7 +208,11 @@ export default define.page<typeof handler>(function Sessions({ data }) {
           <span class="ui-hint">what the team has already shared</span>
         </div>
         {past.length
-          ? past.map((s) => <Row key={s.id} session={s} />)
+          ? (
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {past.map((s) => <Row key={s.id} session={s} past />)}
+            </div>
+          )
           : <div class="ui-empty">Nothing yet.</div>}
       </section>
     </>
