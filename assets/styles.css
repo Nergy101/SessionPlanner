@@ -322,10 +322,6 @@
     box-shadow: var(--shadow-md);
   }
 
-  .nav-link-locked {
-    color: var(--color-muted);
-  }
-
   .nav-link-vertical {
     min-height: 54px;
     padding: 0 14px;

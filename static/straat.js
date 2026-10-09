@@ -22,6 +22,7 @@
     "Skip to content": "Skip die zooi, direct naar de content",
     "Sections": "Hoekjes",
     "Sign out": "Ik ben weg, doei",
+    "Log in": "Ff binnenkomen",
     "Toggle theme": "Licht/donker switchen",
     "Switch to light": "Zet de lampen aan",
     "Switch to dark": "Doe maar donker, sfeer",

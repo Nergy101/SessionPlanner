@@ -4,20 +4,21 @@ import { asset } from "fresh/runtime";
 import ThemeToggle from "@/islands/ThemeToggle.tsx";
 import StraatToggle from "@/islands/StraatToggle.tsx";
 
+/** Only the dashboard is public; the rest show once signed in. */
 const NAV = [
-  { href: "/", label: "dashboard" },
-  { href: "/subjects", label: "subjects" },
-  { href: "/sessions", label: "sessions" },
-  { href: "/people", label: "people" },
-  { href: "/notes", label: "notes" },
-  { href: "/data", label: "data" },
+  { href: "/", label: "dashboard", public: true },
+  { href: "/subjects", label: "subjects", public: false },
+  { href: "/sessions", label: "sessions", public: false },
+  { href: "/people", label: "people", public: false },
+  { href: "/notes", label: "notes", public: false },
+  { href: "/data", label: "data", public: false },
 ];
 
 export default function App(
   { Component, url, state }: PageProps<unknown, State>,
 ) {
-  // Only the dashboard is public. Other sections stay visible as locked links to /login.
   const signedIn = state?.signedIn === true;
+  const visibleNav = NAV.filter((item) => signedIn || item.public);
 
   // The login page carries its own layout and gets no app chrome.
   const bare = url.pathname === "/login";
@@ -25,24 +26,20 @@ export default function App(
   const active = (href: string) =>
     href === "/" ? url.pathname === "/" : url.pathname.startsWith(href);
 
-  const current = NAV.find((item) => active(item.href));
+  const current = visibleNav.find((item) => active(item.href));
 
   const navLinks = (vertical: boolean) =>
-    NAV.map((item) => {
+    visibleNav.map((item) => {
       const isActive = active(item.href);
-      const locked = !signedIn && item.href !== "/";
       const classes = [
         "nav-link",
         vertical && "nav-link-vertical",
         isActive && "nav-link-active",
-        locked && "nav-link-locked",
       ].filter(Boolean).join(" ");
       return (
         <a
           key={item.href}
-          href={locked
-            ? `/login?returnTo=${encodeURIComponent(item.href)}`
-            : item.href}
+          href={item.href}
           aria-current={isActive ? "page" : undefined}
           class={classes}
         >
@@ -58,13 +55,15 @@ export default function App(
     </span>
   );
 
-  const signOut = signedIn && (
-    <form method="post" action="/logout">
-      <button type="submit" class="ui-btn ui-btn-ghost" title="Sign out">
-        Sign out
-      </button>
-    </form>
-  );
+  const account = signedIn
+    ? (
+      <form method="post" action="/logout">
+        <button type="submit" class="ui-btn ui-btn-ghost" title="Sign out">
+          Sign out
+        </button>
+      </form>
+    )
+    : <a href="/login" class="ui-btn ui-btn-ghost">Log in</a>;
 
   return (
     <html lang="en" data-theme="light">
@@ -132,7 +131,7 @@ export default function App(
               <div class="sidebar-foot">
                 <ThemeToggle />
                 <StraatToggle />
-                {signOut}
+                {account}
               </div>
             </aside>
 
@@ -162,7 +161,7 @@ export default function App(
                       <span class="ui-eyebrow">Theme</span>
                       <ThemeToggle />
                     </div>
-                    {signOut}
+                    {account}
                   </div>
                 </div>
               </details>
