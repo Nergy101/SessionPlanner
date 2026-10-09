@@ -890,8 +890,8 @@
     --squircle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 0C10 0 0 10 0 50s10 50 50 50 50-10 50-50S90 0 50 0Z'/%3E%3C/svg%3E");
     display: inline-grid;
     flex: none;
-    width: 44px;
-    height: 44px;
+    width: var(--size, 44px);
+    height: var(--size, 44px);
     padding: var(--border-w);
     background: var(--color-line);
     mask: var(--squircle) center / 100% 100% no-repeat;
@@ -1138,10 +1138,30 @@
   .board-people {
     display: flex;
     flex: 1 1 auto;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px;
+    flex-direction: column;
+    gap: 6px;
     min-width: 0;
+  }
+
+  .board-person {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .board-person .avatar-empty {
+    width: 24px;
+    height: 24px;
+    border-radius: 30%;
+  }
+
+  .board-person > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .board-foot {

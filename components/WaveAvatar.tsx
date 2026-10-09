@@ -7,18 +7,27 @@ const WAVES_URL = "https://api.dicebear.com/10.x/waves/svg";
  * keeps the picture. The animation runs inside the SVG and stops for anyone
  * who prefers reduced motion. Decorative: the name always sits next to it.
  */
-export function WaveAvatar({ personId }: { personId: number }) {
+/** The picture for one person, with the slow drift animation. */
+function wavesUrl(personId: number): string {
   const params = new URLSearchParams({
     seed: `person-${personId}`,
     animationVariant: "slow",
   });
+  return `${WAVES_URL}?${params}`;
+}
+
+export function WaveAvatar({ personId, size = 44 }: {
+  personId: number;
+  /** Outer size in px, outline included. */
+  size?: number;
+}) {
   return (
-    <span class="wave-avatar" aria-hidden="true">
+    <span class="wave-avatar" style={`--size:${size}px`} aria-hidden="true">
       <img
-        src={`${WAVES_URL}?${params}`}
+        src={wavesUrl(personId)}
         alt=""
-        width={40}
-        height={40}
+        width={size}
+        height={size}
         loading="lazy"
         referrerpolicy="no-referrer"
       />

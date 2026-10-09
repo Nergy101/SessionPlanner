@@ -5,7 +5,7 @@ import {
   searchText,
   type Subject,
 } from "@/services/subjects.ts";
-import { Avatar } from "./Avatar.tsx";
+import { WaveAvatar } from "./WaveAvatar.tsx";
 
 /** Links shown on a card before "+N more". */
 const LINK_PREVIEW = 3;
@@ -59,18 +59,16 @@ export function BoardCard({ subject, linked, children }: {
         <div class="board-people">
           {subject.people.length
             ? subject.people.map((person) => (
-              <Avatar
-                key={person.id}
-                name={person.name}
-                stage={subject.stage}
-              />
+              <span key={person.id} class="board-person">
+                <WaveAvatar personId={person.id} size={24} />
+                <span>{person.name}</span>
+              </span>
             ))
             : (
-              <span
-                class="avatar avatar-empty"
-                role="img"
-                aria-label="no speaker yet"
-              />
+              <span class="board-person text-muted">
+                <span class="avatar avatar-empty" aria-hidden="true" />
+                <span>no speaker yet</span>
+              </span>
             )}
         </div>
         {children}
