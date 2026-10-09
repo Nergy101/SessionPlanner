@@ -1242,6 +1242,15 @@
     border-radius: 14px;
   }
 
+  /* The upcoming edition, in the same blue as the Next strip. */
+  .lane-group-next {
+    background: var(--color-next);
+  }
+
+  .lane-group-next .lane-group-head {
+    color: #111111;
+  }
+
   .lane-group[hidden] {
     display: none;
   }

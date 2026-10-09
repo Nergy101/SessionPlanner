@@ -303,17 +303,30 @@ function LaneCards(props: LaneProps) {
   }
   return (
     <>
-      {groupBySession(props.items, props.upcoming).map((
-        { session, subjects },
-      ) => (
-        <div key={session.id} class="lane-group" data-group>
-          <a href={`/sessions/${session.id}`} class="lane-group-head">
-            #{session.id} · {sessionWhen(session)}
-          </a>
-          {subjects.map((s) => <LaneCard key={s.id} {...props} subject={s} />)}
-        </div>
+      {groupBySession(props.items, props.upcoming).map((group) => (
+        <SessionGroup
+          key={group.session.id}
+          {...props}
+          {...group}
+          isNext={group.session.id === props.upcoming[0]?.id}
+        />
       ))}
     </>
+  );
+}
+
+/** One session's cards in a dashed frame; the upcoming edition is blue. */
+function SessionGroup(
+  props: LaneProps & { session: Session; subjects: Subject[]; isNext: boolean },
+) {
+  const { session, subjects, isNext } = props;
+  return (
+    <div class={`lane-group${isNext ? " lane-group-next" : ""}`} data-group>
+      <a href={`/sessions/${session.id}`} class="lane-group-head">
+        #{session.id} · {sessionWhen(session)}
+      </a>
+      {subjects.map((s) => <LaneCard key={s.id} {...props} subject={s} />)}
+    </div>
   );
 }
 
