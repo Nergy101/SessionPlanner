@@ -268,7 +268,175 @@
     "Scores are recomputed from the schedule every time this page loads — there is no stored total to argue with.":
       "Scores worden elke keer opnieuw uitgerekend — geen totaal om over te zeiken.",
 
+    // ---- shell, current UI ----
+    "Open navigation": "Menu open gooien",
+    "Theme": "Sfeer",
+    "◐ Light": "◐ Licht",
+    "◑ Dark": "◑ Donker",
+    "Straat-taal": "Straattaal",
+    "session planner – dashboard": "fissa planner – osso",
+    "Lanes": "Banen",
+    "Copied": "gekopieerd",
+    "Delete": "Slopen",
+    "Remove": "Eruit",
+    "Change": "Aanpassen",
+    "Create": "Maken",
+    "All": "Alles",
+    "Time": "Tijd",
+    "URL": "Adres",
+
+    // ---- dashboard board ----
+    "Capture an idea… ⏎ to add": "Gooi een plannetje erin… ⏎ en klaar",
+    "Speaker (optional)": "Spreker (hoeft niet)",
+    "Filter cards by title, speaker or description…":
+      "Zoek kaartjes op titel, spreker of uitleg…",
+    "Filter cards": "Kaartjes filteren",
+    "has speaker": "spreker binnen",
+    "needs a session": "zoekt een fissa",
+    "on an upcoming date": "staat in de agenda",
+    "the archive": "het archief, oude bangers",
+    "+ speaker": "+ spreker",
+    "plan →": "inplannen →",
+    "add recording": "opname erbij",
+    "recording ✓": "opname ✓",
+    "no speaker yet": "nog geen spreker",
+    "claim": "claimen",
+    "I'll present it": "Ik doe 'm",
+    "Your name — you'll present this one": "Je naam — jij gaat 'm droppen",
+    "e.g. Jan de Vries": "bv. Jan de Vries",
+    "That one couldn't be claimed: it may already have a speaker, or the name was empty.":
+      "Die kon je niet claimen: iemand was je voor, of je naam was leeg, mattie.",
+    "is on it — it's now under has speaker.":
+      "gaat 'm doen, respect — staat nu bij spreker binnen.",
+    "No upcoming session": "Geen fissa in zicht",
+    "add a date →": "prik een datum →",
+    "No loose ideas.": "Geen losse plannetjes.",
+
+    // ---- subjects, current UI ----
+    "+ New subject": "+ Nieuwe tori",
+    "Filter by stage": "Filter op fase",
+    "Search title, description, speaker, link…":
+      "Zoek op titel, uitleg, spreker, linkje…",
+    "Title of the new subject…": "Titel van de nieuwe tori…",
+    "No subjects yet. Add the first one with + New subject.":
+      "Nog geen tori's. Gooi de eerste erin met + Nieuwe tori.",
+    "Nothing matches. Clear the search or the stage filter.":
+      "Niks gevonden, wallah. Poets de zoekterm of het fase-filter weg.",
+    "links": "linkjes",
+    "speaker": "spreker",
+    "stage": "fase",
+    "title": "titel",
+    "the backlog and the archive.": "de bak en de kluis.",
+    "↑↓ move · ⏎ open · / focus search · esc clear":
+      "↑↓ schuiven · ⏎ openen · / zoeken · esc wegpoetsen",
+    "Added": "Erin gegooid:",
+    "Already had": "Hadden we al:",
+    "Captured": "Erin gegooid",
+    "History": "Geschiedenis",
+    "Last edit": "Laatst aangepast",
+    "Stage changed": "Fase veranderd",
+    "Stage": "Fase",
+    "Move it": "Verschuiven",
+    "Plan it": "Inplannen",
+    "Add a date": "Prik een datum",
+    "Add a speaker on the left. You can already pick a date.":
+      "Zet links een spreker erop. Een datum prikken kan al.",
+    "No sessions yet.": "Nog geen fissa's.",
+    "Delete subject…": "Tori slopen…",
+    "▶ Recording": "▶ Opname",
+    "⏎ save": "⏎ vastzetten",
+    "↑↓ pick · ⏎ add · ⌫ on empty removes the last · esc close":
+      "↑↓ kiezen · ⏎ erin · ⌫ op leeg haalt de laatste weg · esc dicht",
+    "Next step: find a speaker": "Volgende stap: zoek een spreker",
+    "Next step: put it on a date": "Volgende stap: prik een datum",
+    "Next step: present it": "Volgende stap: droppen die handel",
+    "Done: it was presented": "Klaar: is gedropt, respect",
+
+    // ---- sessions, current UI ----
+    "+ Session": "+ Fissa",
+    "+ open slot": "+ plek vrij",
+    "nothing presented": "niks gedropt",
+    "took place": "is geweest",
+    "(new topic — who's presenting it?)":
+      "(nieuwe tori — wie gaat 'm droppen?)",
+    "Add subject": "Tori erbij",
+    "Copy agenda as text": "Agenda als tekst kopiëren",
+    "Show agenda text": "Agenda als tekst",
+    "Download .ics": "In je agenda (.ics)",
+    "Delete session…": "Fissa slopen…",
+    "Its subjects survive and go back to the backlog.":
+      "De tori's overleven het en gaan terug in de bak.",
+    "Move earlier": "Naar voren",
+    "Move later": "Naar achteren",
+    "Up": "Op",
+    "Down": "Neer",
+    "Session date": "Datum van de fissa",
+    "Session notes": "Notities van de fissa",
+    "Start time": "Begintijd",
+    "Nothing planned yet. Add one below.":
+      "Nog niks gepland. Gooi er hieronder eentje in.",
+    "Nothing unscheduled left in the backlog; type a title to create one.":
+      "De bak is leeg; typ een titel voor een nieuwe tori.",
+    "Paste a recording link per subject.": "Plak per tori een opname-linkje.",
+    "Find a subject, or type a new one…": "Zoek een tori, of typ een nieuwe…",
+
+    // ---- people, current UI ----
+    "Filter by name…": "Filter op naam…",
+    "Filter people": "Matties filteren",
+    "Merging folds one person into another and moves their subjects across. Only someone with no subjects can be deleted.":
+      "Samenvoegen gooit twee matties op één hoop, hun tori's gaan mee. Alleen wie geen tori's heeft kan eruit.",
+    "everyone who presents or might.":
+      "iedereen die dropt of misschien gaat droppen.",
+    "DUPLICATE?": "DUBBEL?",
+    "Same person, different spellings": "Zelfde mattie, andere spelling",
+    "Merge": "Samenvoegen",
+    "Nobody matches that name.": "Niemand met die naam, bro.",
+    "Nobody yet. Add a few above, or they'll appear as you put speakers on subjects.":
+      "Nog niemand. Gooi er hierboven een paar in, of ze komen vanzelf als je sprekers op tori's zet.",
+
+    // ---- notes ----
+    "Private scratch space. Notes never link to subjects or sessions.":
+      "Je eigen kladblok. Notities hangen nooit aan tori's of fissa's.",
+    "Write whatever comes to mind…": "Gooi eruit wat er in je hoofd zit…",
+    "Save note": "Vastzetten",
+    "ctrl+⏎ to save": "ctrl+⏎ om vast te zetten",
+    "New note": "Nieuwe notitie",
+    "Note": "Notitie",
+    "No notes yet. Start typing above.":
+      "Nog geen notities. Begin hierboven te typen.",
+    "● unsaved": "● nog niet vast",
+
+    // ---- data ----
+    "Export": "Exporteren",
+    "Import": "Importeren",
+    "Download JSON": "JSON downloaden",
+    "Download a complete backup, or restore one from another instance.":
+      "Download een complete backup, of zet er een terug van een andere plek.",
+    "· includes notes": "· inclusief notities",
+    "Backup file": "Backup-bestand",
+    "Backup imported.": "Backup staat erin, strak.",
+    "Choose a backup file first": "Kies eerst een backup-bestand, mattie",
+    "Importing backup…": "Backup gaat erin…",
+    "Importing deletes every subject, session, person and note here and puts the file's in their place. Export first if you might want to undo it.":
+      "Importeren sloopt elke tori, fissa, mattie en notitie hier en zet die uit het bestand ervoor in de plaats. Exporteer eerst als je misschien terug wilt.",
+    "REPLACES EVERYTHING": "VERVANGT ALLES",
+    "Replace all data": "Alles vervangen",
+    // The word to type ("replace") stays English: the server checks for it.
+    "Type": "Typ",
+    "to confirm": "om te bevestigen",
+    "Will be deleted": "Wordt gesloopt",
+    "In file": "In het bestand",
+    "not a SessionPlanner backup": "geen SessionPlanner-backup, nep",
+
     // ---- login ----
+    "PRIVATE": "PRIVÉ",
+    "Password, please": "Wachtwoord, graag",
+    "Everything except the dashboard is behind one shared password. You'll go back to":
+      "Alles behalve de osso zit achter één gedeeld wachtwoord. Daarna ga je terug naar",
+    "afterwards.": ".",
+    "Sign in ⏎": "Kom binnen ⏎",
+    "Signing in…": "Even binnenkomen…",
+    "← Public dashboard": "← Openbare osso",
     "sign in": "kom binnen",
     "Password": "Wachtwoord",
     "that password isn't right.": "dat wachtwoord klopt niet, mattie.",
@@ -357,7 +525,46 @@
     [/^new topic: “(.+)”$/, (t) => `nieuwe tori: “${t}”`],
     [/^new person: “(.+)”$/, (t) => `nieuwe mattie: “${t}”`],
     [/^\+ add “(.+)”$/, (t) => `+ “${t}” erbij`],
+    [/^(\d+) sessions?$/, (n) => `${n} fissa${n === "1" ? "" : "'s"}`],
+    [/^(\d+) (?:people|person)$/, (n) => `${n} mattie${n === "1" ? "" : "s"}`],
+    [/^(\d+) notes?$/, (n) => `${n} notitie${n === "1" ? "" : "s"}`],
+    [/^(\d+) presented$/, (n) => `${n} gedropt`],
+    [/^(\d+) upcoming$/, (n) => `${n} op komst`],
+    [/^(\d+) past$/, (n) => `${n} geweest`],
+    [/^(\d+) total$/, (n) => `${n} totaal`],
+    [
+      /^(\d+) of (\d+) slots( filled)?$/,
+      (a, b, filled) => `${a} van ${b} plekken${filled ? " bezet" : ""}`,
+    ],
+    [
+      /^(\d+)\/(\d+) recordings (.)$/,
+      (a, b, mark) => `${a}/${b} opnames ${mark}`,
+    ],
+    [
+      /^(\d+) unscheduled in the backlog, speaker-ready first\.$/,
+      (n) => `${n} in de bak, die met spreker eerst.`,
+    ],
+    [
+      /^Keeps the selected spelling\. All (\d+) subjects? move to it\.$/,
+      (n) => `De gekozen spelling blijft. Alle ${n} tori's gaan mee.`,
+    ],
+    [/^Next · #(\d+) (.+)$/, (n, t) => `Volgende · #${n} ${w(t)}`],
+    [/^#(\d+) · (.+)$/, (n, t) => `#${n} · ${w(t)}`],
+    [/^(.+) — (\d+) open$/, (t, n) => `${w(t)} — ${n} vrij`],
+    [/^Plan on #(\d+), (.+)$/, (n, t) => `Plan in op #${n}, ${w(t)}`],
+    [/^✓ (.+)$/, (t) => `✓ ${w(t)}`],
+    // Lane tabs render as `label (`, the count, `)`.
+    [/^(.+) \($/, (t) => `${w(t)} (`],
+    [/^Nothing here matches “(.+)”\.$/, (q) => `Niks hier past bij “${q}”.`],
+    [/^New speaker “(.+)”$/, (t) => `Nieuwe spreker “${t}”`],
+    [
+      /^Create “(.+)” as a new subject on #(\d+)$/,
+      (t, n) => `Maak “${t}” als nieuwe tori op #${n}`,
+    ],
     // aria-labels and titles that carry a subject title or a name
+    [/^Move earlier: (.+)$/, (t) => `Naar voren: ${t}`],
+    [/^Move later: (.+)$/, (t) => `Naar achteren: ${t}`],
+    [/^Rename (.+)$/, (p) => `${p} hernoemen`],
     [/^Bounty for (.+), in XP$/, (t) => `Premie voor ${t}, in XP`],
     [/^Schedule (.+) on a session$/, (t) => `Plan ${t} in op een fissa`],
     [/^Speakers for (.+)$/, (t) => `Sprekers voor ${t}`],
@@ -416,38 +623,79 @@
     Dec: "dec",
   };
   // en-GB dates as the server formats them: "Thu 1 Oct", "Thursday, 1 October
-  // 2026", "Sept 2026".
+  // 2026", "Sept 2026", "Thu 1 Oct, 16:00".
   const DATE =
-    /^(?:([A-Z][a-z]+),? )?(?:(\d{1,2}) )?([A-Z][a-z]+)(?: (\d{4}))?$/;
+    /^(?:(?<day>[A-Z][a-z]+),? )?(?:(?<num>\d{1,2}) )?(?<month>[A-Z][a-z]+)(?: (?<year>\d{4}))?(?:, (?<time>\d{2}:\d{2}))?$/;
 
   /** Dutch for a date string, or null if it isn't one. */
   function date(text) {
-    const m = text.match(DATE);
-    if (!m) return null;
-    const [, day, num, month, year] = m;
-    if (!Object.hasOwn(MONTHS, month)) return null;
-    if (day && !Object.hasOwn(DAYS, day)) return null;
-    if (!num && !year) return null;
-    return [day && DAYS[day], num, MONTHS[month], year].filter(Boolean)
+    const found = text.match(DATE)?.groups;
+    if (!found || !isDate(found)) return null;
+    const { day, num, month, year, time } = found;
+    // DAYS[undefined] is undefined too, so a date without a weekday drops it.
+    const dutch = [DAYS[day], num, MONTHS[month], year].filter(Boolean)
       .join(" ");
+    return time ? `${dutch}, ${time}` : dutch;
+  }
+
+  /** A real month, a real weekday if any, and a day number or a year. */
+  function isDate(found) {
+    const knownDay = !found.day || Object.hasOwn(DAYS, found.day);
+    return Object.hasOwn(MONTHS, found.month) && knownDay &&
+      Boolean(found.num || found.year);
   }
   const d = (text) => date(text) ?? text;
+
+  /** A weekday or month on its own, as on a calendar tile: "Thu", "Oct". */
+  function calendarWord(text) {
+    if (Object.hasOwn(DAYS, text)) return DAYS[text];
+    if (Object.hasOwn(MONTHS, text)) return MONTHS[text];
+    return null;
+  }
+
+  /**
+   * "Thu · 16:00 · in 6 days": each part on its own, so counts and dates
+   * combine freely. Null unless at least one part is known.
+   */
+  function parts(text) {
+    const pieces = text.split(" · ");
+    if (pieces.length < 2) return null;
+    const known = pieces.map(lookup);
+    if (known.every((p) => p === null)) return null;
+    return known.map((p, i) => p ?? pieces[i]).join(" · ");
+  }
 
   const capitalise = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
   /** Returns the slang for one UI string, or null when it isn't one we know. */
   function lookup(text) {
+    for (const step of LOOKUPS) {
+      const out = step(text);
+      if (out !== null) return out;
+    }
+    return null;
+  }
+
+  /** An exact WORDS entry, or its lower-case entry capitalised. */
+  function word(text) {
     if (Object.hasOwn(WORDS, text)) return WORDS[text];
     const lower = text.toLowerCase();
-    if (lower !== text && Object.hasOwn(WORDS, lower)) {
-      return capitalise(WORDS[lower]);
-    }
+    return Object.hasOwn(WORDS, lower) ? capitalise(WORDS[lower]) : null;
+  }
+
+  function pattern(text) {
     for (const [re, fn] of PATTERNS) {
       const m = text.match(re);
       if (m) return fn(...m.slice(1));
     }
-    return date(text);
+    return null;
   }
+
+  /** Tried in order; the first that knows the string wins. */
+  const LOOKUPS = [word, pattern, date, calendarWord, parts];
+
+  /** The slang for a known string, or the string itself. */
+  const w = (text) => lookup(text) ?? text;
 
   /** Keeps the node's surrounding whitespace, so inline spacing survives. */
   function translate(raw) {

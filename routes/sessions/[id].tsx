@@ -242,7 +242,8 @@ function ShareCard({ session }: { session: Session }) {
       </div>
       <details>
         <summary class="ui-hint cursor-pointer">Show agenda text</summary>
-        <pre class="agenda-text">{text}</pre>
+        {/* The text Copy puts on the clipboard; straat-taal leaves it as is. */}
+        <pre class="agenda-text" data-no-straat>{text}</pre>
       </details>
       <form method="post" class="border-t-2 border-dashed border-line pt-3">
         <input type="hidden" name="intent" value="delete" />
