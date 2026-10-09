@@ -10,7 +10,7 @@ import {
 } from "@/services/people.ts";
 import { listSubjects, type Subject } from "@/services/subjects.ts";
 import type { Person } from "@/db/schema.ts";
-import { Avatar } from "@/components/Avatar.tsx";
+import { WaveAvatar } from "@/components/WaveAvatar.tsx";
 import InlineText from "@/islands/InlineText.tsx";
 import AutoSubmitSelect from "@/islands/AutoSubmitSelect.tsx";
 import QuickAdd from "@/islands/QuickAdd.tsx";
@@ -234,7 +234,7 @@ function PersonCard({ row, everyone }: {
   return (
     <li class="ui-card person-card">
       <div class="flex items-center gap-3">
-        <Avatar name={row.name} personId={row.id} large />
+        <WaveAvatar personId={row.id} />
         <div class="min-w-0 flex-1">
           <form method="post">
             <input type="hidden" name="intent" value="rename" />

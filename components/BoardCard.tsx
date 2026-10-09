@@ -1,5 +1,10 @@
 import type { ComponentChildren } from "preact";
-import { idleSticker, linkLabel, type Subject } from "@/services/subjects.ts";
+import {
+  idleSticker,
+  linkLabel,
+  searchText,
+  type Subject,
+} from "@/services/subjects.ts";
 import { Avatar } from "./Avatar.tsx";
 
 /** Links shown on a card before "+N more". */
@@ -20,7 +25,7 @@ export function BoardCard({ subject, linked, children }: {
   const more = subject.links.length - shown.length;
 
   return (
-    <article class="board-card">
+    <article class="board-card" data-search={searchText(subject)}>
       {idle !== null && (
         <span class="sticker sticker-corner">idle {idle}d!</span>
       )}

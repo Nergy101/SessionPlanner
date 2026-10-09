@@ -8,31 +8,14 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-/** A stable hue per person, spread round the wheel so neighbours differ. */
-function personHue(id: number): number {
-  return (id * 67) % 360;
-}
-
 /**
- * A speaker's initials on a disc: the subject's stage colour on cards, or a
- * per-person hue (pass `personId`) where people are listed on their own. The full
- * name stays readable to screen readers.
+ * A speaker's initials on a disc in the subject's stage colour. The full name
+ * stays readable to screen readers.
  */
-export function Avatar({ name, stage, personId, large = false }: {
-  name: string;
-  stage?: Stage;
-  personId?: number;
-  large?: boolean;
-}) {
+export function Avatar({ name, stage }: { name: string; stage?: Stage }) {
   const colour = stage ? ` avatar-${stage}` : "";
   return (
-    <span
-      class={`avatar${colour}${large ? " avatar-lg" : ""}`}
-      style={personId === undefined
-        ? undefined
-        : `--hue:${personHue(personId)}`}
-      title={name}
-    >
+    <span class={`avatar${colour}`} title={name}>
       {initials(name)}
       <span class="sr-only">{name}</span>
     </span>

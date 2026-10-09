@@ -885,10 +885,22 @@
     line-height: 1;
   }
 
-  .avatar-lg {
+  /* A superellipse, so the outline follows the same curve as the picture. */
+  .wave-avatar {
+    --squircle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 0C10 0 0 10 0 50s10 50 50 50 50-10 50-50S90 0 50 0Z'/%3E%3C/svg%3E");
+    display: inline-grid;
+    flex: none;
     width: 44px;
     height: 44px;
-    font-size: 14px;
+    padding: var(--border-w);
+    background: var(--color-line);
+    mask: var(--squircle) center / 100% 100% no-repeat;
+  }
+
+  .wave-avatar img {
+    width: 100%;
+    height: 100%;
+    mask: var(--squircle) center / 100% 100% no-repeat;
   }
 
   .avatar-empty {
@@ -1173,6 +1185,15 @@
       min-height: 44px;
       justify-content: center;
     }
+  }
+
+  .board-search {
+    margin-top: 16px;
+    max-width: 520px;
+  }
+
+  .board-card[hidden] {
+    display: none;
   }
 
   .lane-tabs {

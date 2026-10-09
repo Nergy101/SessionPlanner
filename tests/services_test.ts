@@ -410,6 +410,20 @@ Deno.test("only real HH:MM times parse", () => {
   assertEquals(sessions.parseTime(null), null);
 });
 
+test("board search matches title, speaker and description", async () => {
+  const id = await subjects.createSubject("Testcontainers in CI");
+  await subjects.setSubjectPeople(id, ["Jan de Vries"]);
+  await subjects.updateSubjectDetails(id, {
+    title: "Testcontainers in CI",
+    description: "Real Postgres per test run",
+  });
+  const s = (await subjects.getSubject(id))!;
+  for (const q of ["containers", "JAN", "postgres", " ", ""]) {
+    assert(subjects.matchesSearch(s, q), q);
+  }
+  assert(!subjects.matchesSearch(s, "kubernetes"));
+});
+
 // Close the shared connection so the test process can exit.
 globalThis.addEventListener("unload", () => {
   db.destroy();

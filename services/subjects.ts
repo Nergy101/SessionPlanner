@@ -568,6 +568,21 @@ export function isSortKey(value: string): value is SortKey {
  * date) sink to the bottom in both directions, and ties keep the list's own order,
  * since Array.prototype.sort is stable.
  */
+/** Lower-case title, speakers and description: what a board search matches on. */
+export function searchText(subject: Subject): string {
+  return [
+    subject.title,
+    ...subject.people.map((p) => p.name),
+    subject.description,
+  ]
+    .filter(Boolean).join(" ").toLowerCase();
+}
+
+/** Whether a subject matches a typed search; an empty search matches all. */
+export function matchesSearch(subject: Subject, query: string): boolean {
+  return searchText(subject).includes(query.trim().toLowerCase());
+}
+
 export function sortSubjects(
   list: Subject[],
   key: SortKey,

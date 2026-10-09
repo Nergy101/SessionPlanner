@@ -4,6 +4,7 @@ import {
   createSubject,
   getSubject,
   listSubjects,
+  matchesSearch,
   setSubjectPeople,
   setSubjectSession,
   type Stage,
@@ -21,6 +22,7 @@ import { normalizeName } from "@/services/people.ts";
 import { BoardCard } from "@/components/BoardCard.tsx";
 import PeoplePicker from "@/islands/PeoplePicker.tsx";
 import QuickAdd from "@/islands/QuickAdd.tsx";
+import BoardSearch from "@/islands/BoardSearch.tsx";
 
 /**
  * The four lanes of the board. Each lane is one derived stage: nothing is dragged,
@@ -50,12 +52,21 @@ export const handler = define.handlers({
       listSubjects({ stage: "presented" }),
     ]);
     const requested = ctx.url.searchParams.get("lane");
+    const query = ctx.url.searchParams.get("q")?.trim() ?? "";
+    const matching = (list: Subject[]) =>
+      list.filter((s) => matchesSearch(s, query));
 
     return page({
       next: upcoming[0] ?? null,
       upcoming,
-      lanes: { idea, speaker, planned, presented },
+      lanes: {
+        idea: matching(idea),
+        speaker: matching(speaker),
+        planned: matching(planned),
+        presented: matching(presented),
+      },
       activeLane: isLane(requested) ? requested : "idea",
+      query,
       added: ctx.url.searchParams.get("added"),
       scheduled: ctx.url.searchParams.get("scheduled"),
       speakerAdded: ctx.url.searchParams.get("speaker"),
@@ -131,6 +142,7 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
     upcoming,
     lanes,
     activeLane,
+    query,
     added,
     scheduled,
     speakerAdded,
@@ -188,17 +200,22 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
         </p>
       )}
 
+      <BoardSearch query={query} lane={activeLane} />
+
       <nav class="lane-tabs mt-4" aria-label="Lanes">
         {LANES.map((lane) => (
           <a
             key={lane.key}
-            href={`/?lane=${lane.key}`}
+            href={laneHref(lane.key, query)}
+            data-lane-tab={lane.key}
             class={`lane-tab lane-tab-${lane.key}${
               lane.key === activeLane ? " lane-tab-active" : ""
             }`}
             aria-current={lane.key === activeLane ? "page" : undefined}
           >
-            {lane.label} ({lanes[lane.key].length})
+            {lane.label} (<span data-lane-count={lane.key}>
+              {lanes[lane.key].length}
+            </span>)
           </a>
         ))}
       </nav>
@@ -210,6 +227,7 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
             <section
               key={lane.key}
               class={`lane${lane.key === activeLane ? "" : " lane-inactive"}`}
+              data-lane={lane.key}
               aria-labelledby={`lane-${lane.key}`}
             >
               <div class="lane-head">
@@ -217,7 +235,9 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
                 <span class={`ui-badge ui-badge-${lane.key}`}>
                   {lane.label}
                 </span>
-                <span class="lane-count">{items.length}</span>
+                <span class="lane-count" data-lane-count={lane.key}>
+                  {items.length}
+                </span>
               </div>
               <p class="lane-hint">{lane.hint}</p>
 
@@ -237,7 +257,13 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
                     )}
                   </BoardCard>
                 ))
-                : <div class="ui-empty">{emptyText(lane.key, signedIn)}</div>}
+                : (
+                  <div class="ui-empty">
+                    {query
+                      ? `Nothing here matches “${query}”.`
+                      : emptyText(lane.key, signedIn)}
+                  </div>
+                )}
             </section>
           );
         })}
@@ -245,6 +271,13 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
     </>
   );
 });
+
+/** A lane tab's link, keeping the current search. */
+function laneHref(lane: Stage, query: string): string {
+  const params = new URLSearchParams({ lane });
+  if (query) params.set("q", query);
+  return `/?${params}`;
+}
 
 function emptyText(lane: Stage, signedIn: boolean): string {
   switch (lane) {
