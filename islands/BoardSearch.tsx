@@ -5,6 +5,9 @@ import { useSignal } from "@preact/signals";
  * reloads the board filtered by the server. With it, cards filter as you
  * type: each card carries its own lower-case `data-search` text, and the lane
  * counts and tab links follow along. Esc clears.
+ *
+ * Refresh submits the same form: the board reloads with whatever others have
+ * added since, keeping the lane and the filter.
  */
 export function BoardSearch(props: { query: string; lane: string }) {
   const query = useSignal(props.query);
@@ -29,6 +32,13 @@ export function BoardSearch(props: { query: string; lane: string }) {
         onInput={(e) => update(e.currentTarget.value)}
         onKeyDown={(e) => e.key === "Escape" && update("")}
       />
+      <button
+        type="submit"
+        class="ui-btn ui-btn-ghost"
+        title="Reload the board"
+      >
+        ↻ Refresh
+      </button>
     </form>
   );
 }

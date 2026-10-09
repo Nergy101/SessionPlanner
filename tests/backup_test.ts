@@ -104,3 +104,23 @@ Deno.test("backups from before the running order still import", async () => {
   const sessions = (await exportData()).tables.sessions;
   assertEquals(sessions.map((s) => s.start_time), sessions.map(() => null));
 });
+
+Deno.test("backups from before the checkmarks still import, unticked", async () => {
+  const backup = await exportData();
+  const checkColumns = [
+    "bloggable",
+    "linkedin_worthy",
+    "sessionable",
+    "blog_written",
+    "blog_author_id",
+  ] as const;
+  for (const row of backup.tables.subjects) {
+    for (const key of checkColumns) delete (row as Partial<typeof row>)[key];
+  }
+  await importData(backup);
+  const subjects = (await exportData()).tables.subjects;
+  assertEquals(
+    subjects.map((s) => [s.bloggable, s.blog_written, s.blog_author_id]),
+    subjects.map(() => [0, 0, null]),
+  );
+});

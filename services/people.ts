@@ -95,6 +95,10 @@ export async function mergePeople(
         .execute();
     }
 
+    // Blogs follow the person too, so a merge never unassigns one.
+    await trx.updateTable("subjects").set({ blog_author_id: targetId })
+      .where("blog_author_id", "=", sourceId).execute();
+
     // The subject_people rows go with it via ON DELETE CASCADE.
     await trx.deleteFrom("people").where("id", "=", sourceId).execute();
   });

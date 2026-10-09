@@ -1,6 +1,12 @@
 import { type Kysely, sql } from "@kysely/kysely";
 import { db } from "@/db/db.ts";
-import { type Database, type Person, type SubjectLink } from "@/db/schema.ts";
+import type { Selectable } from "@kysely/kysely";
+import {
+  type Database,
+  type Person,
+  type SubjectLink,
+  type SubjectTable,
+} from "@/db/schema.ts";
 import { getOrCreatePerson, normalizeName } from "./people.ts";
 
 /** A subject with the things every view of it needs. */
@@ -20,8 +26,19 @@ export interface Subject {
   links: SubjectLink[];
   /** When `stage` last actually changed; see idleDays(). */
   stageChangedAt: string | null;
+  checks: SubjectChecks;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Where else a subject could go, and whether its blog exists. */
+export interface SubjectChecks {
+  bloggable: boolean;
+  linkedinWorthy: boolean;
+  sessionable: boolean;
+  blogWritten: boolean;
+  /** Who is on the blog; null when nobody is. */
+  blogAuthorId: number | null;
 }
 
 export interface SubjectFilter {
@@ -158,20 +175,22 @@ export function idleSticker(
 
 /** People and links for a set of subjects, in two queries rather than 2N. */
 async function hydrate(
-  rows: Array<{
-    id: number;
-    title: string;
-    description: string | null;
-    session_id: number | null;
-    session_date: string | null;
-    position: number | null;
-    slides_url: string | null;
-    recording_url: string | null;
-    recap_notes: string | null;
-    stage_changed_at: string | null;
-    created_at: string;
-    updated_at: string;
-  }>,
+  rows: Array<
+    {
+      id: number;
+      title: string;
+      description: string | null;
+      session_id: number | null;
+      session_date: string | null;
+      position: number | null;
+      slides_url: string | null;
+      recording_url: string | null;
+      recap_notes: string | null;
+      stage_changed_at: string | null;
+      created_at: string;
+      updated_at: string;
+    } & CheckColumns
+  >,
 ): Promise<Subject[]> {
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
@@ -220,6 +239,7 @@ async function hydrate(
         people,
         links: [],
         stageChangedAt: r.stage_changed_at,
+        checks: toChecks(r),
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       }];
@@ -229,6 +249,25 @@ async function hydrate(
   for (const l of linkRows) byId.get(l.subject_id)?.links.push(l);
 
   return rows.map((r) => byId.get(r.id)!);
+}
+
+type CheckColumns = Pick<
+  Selectable<SubjectTable>,
+  | "bloggable"
+  | "linkedin_worthy"
+  | "sessionable"
+  | "blog_written"
+  | "blog_author_id"
+>;
+
+function toChecks(r: CheckColumns): SubjectChecks {
+  return {
+    bloggable: r.bloggable === 1,
+    linkedinWorthy: r.linkedin_worthy === 1,
+    sessionable: r.sessionable === 1,
+    blogWritten: r.blog_written === 1,
+    blogAuthorId: r.blog_author_id,
+  };
 }
 
 function baseQuery() {
@@ -246,6 +285,11 @@ function baseQuery() {
       "subjects.recording_url",
       "subjects.recap_notes",
       "subjects.stage_changed_at",
+      "subjects.bloggable",
+      "subjects.linkedin_worthy",
+      "subjects.sessionable",
+      "subjects.blog_written",
+      "subjects.blog_author_id",
       "subjects.created_at",
       "subjects.updated_at",
     ]);
@@ -403,6 +447,27 @@ export async function setSubjectPeople(
       }
     })
   );
+}
+
+/**
+ * Saves every checkmark on a subject at once, as the table's row form sends
+ * them. Leaves updated_at alone: ticking boxes in the list shouldn't reshuffle
+ * the list's most-recently-edited order.
+ */
+export async function setSubjectChecks(
+  id: number,
+  checks: SubjectChecks,
+): Promise<void> {
+  await db.updateTable("subjects")
+    .set({
+      bloggable: Number(checks.bloggable),
+      linkedin_worthy: Number(checks.linkedinWorthy),
+      sessionable: Number(checks.sessionable),
+      blog_written: Number(checks.blogWritten),
+      blog_author_id: checks.blogAuthorId,
+    })
+    .where("id", "=", id)
+    .execute();
 }
 
 /** Longest speaker name a visitor may type. */

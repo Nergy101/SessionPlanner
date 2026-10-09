@@ -4,6 +4,7 @@ import * as m002 from "./002_gamification.ts";
 import * as m003 from "./003_notes.ts";
 import * as m004 from "./004_stage_changed_at.ts";
 import * as m005 from "./005_running_order_and_time.ts";
+import * as m006 from "./006_subject_checks.ts";
 
 /**
  * The migration set, explicitly listed.
@@ -23,4 +24,5 @@ export const migrations: Record<string, Migration> = {
   "003_notes": m003,
   "004_stage_changed_at": m004,
   "005_running_order_and_time": m005,
+  "006_subject_checks": m006,
 };

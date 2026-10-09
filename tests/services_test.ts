@@ -467,6 +467,43 @@ test("blank or overlong suggestions are refused", async () => {
   assertEquals(await subjects.suggestSubject("Fine", "x".repeat(61)), null);
 });
 
+test("checkmarks save together and start unticked", async () => {
+  const id = await subjects.createSubject("Edge caching");
+  const author = await people.getOrCreatePerson("Ada Lovelace");
+  assertEquals((await subjects.getSubject(id))!.checks, {
+    bloggable: false,
+    linkedinWorthy: false,
+    sessionable: false,
+    blogWritten: false,
+    blogAuthorId: null,
+  });
+
+  const checks = {
+    bloggable: true,
+    linkedinWorthy: false,
+    sessionable: true,
+    blogWritten: true,
+    blogAuthorId: author.id,
+  };
+  await subjects.setSubjectChecks(id, checks);
+  assertEquals((await subjects.getSubject(id))!.checks, checks);
+});
+
+test("a merge moves blog authorship to the kept person", async () => {
+  const id = await subjects.createSubject("Edge caching");
+  const source = await people.getOrCreatePerson("Ada L.");
+  const target = await people.getOrCreatePerson("Ada Lovelace");
+  await subjects.setSubjectChecks(id, {
+    bloggable: true,
+    linkedinWorthy: false,
+    sessionable: false,
+    blogWritten: false,
+    blogAuthorId: source.id,
+  });
+  await people.mergePeople(source.id, target.id);
+  assertEquals((await subjects.getSubject(id))!.checks.blogAuthorId, target.id);
+});
+
 // Close the shared connection so the test process can exit.
 globalThis.addEventListener("unload", () => {
   db.destroy();

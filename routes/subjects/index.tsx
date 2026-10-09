@@ -2,18 +2,23 @@ import { page } from "fresh";
 import { define } from "@/utils.ts";
 import {
   createSubject,
+  getSubject,
   isSortKey,
   linkLabel,
   listSubjects,
+  setSubjectChecks,
   type SortDir,
   type SortKey,
   sortSubjects,
   type Stage,
   STAGE_ORDER,
+  type SubjectChecks as Checks,
 } from "@/services/subjects.ts";
 import { StatusBadge } from "@/components/StatusBadge.tsx";
 import QuickAdd from "@/islands/QuickAdd.tsx";
 import ListKeys from "@/islands/ListKeys.tsx";
+import SubjectChecks from "@/islands/SubjectChecks.tsx";
+import { listPeople } from "@/services/people.ts";
 
 /** Filter pill labels. The stage badges keep the bare stage names. */
 const PILL_LABEL: Record<Stage, string> = {
@@ -35,10 +40,11 @@ export const handler = define.handlers({
     const sort = isSortKey(sortParam) ? sortParam : null;
     const dir: SortDir = q.get("dir") === "desc" ? "desc" : "asc";
 
-    const [subjects, everything] = await Promise.all([
+    const [subjects, everything, people] = await Promise.all([
       listSubjects({ text, stage }),
       // Unfiltered, so the stage pills show how many each one holds in total.
       listSubjects(),
+      listPeople(),
     ]);
 
     const counts = {
@@ -59,34 +65,55 @@ export const handler = define.handlers({
       text,
       stage: stage ?? "",
       added: q.get("added"),
+      people: people.map(({ id, name }) => ({ id, name })),
     });
   },
 
   /**
-   * The list's only write is creating a subject; editing happens on the
-   * subject's own page. The redirect keeps the filters and drops any stale
-   * "added" notice.
+   * Creating a subject, or a row's checkmarks (`intent=checks`); everything
+   * else is edited on the subject's own page. The redirect keeps the filters
+   * and drops any stale "added" notice.
    */
   async POST(ctx) {
     const form = await ctx.req.formData();
-    const title = String(form.get("title") ?? "").trim();
-
     const filters = new URLSearchParams(ctx.url.search);
     filters.delete("added");
-    if (!title) {
-      const query = filters.toString();
-      return ctx.redirect(query ? `/subjects?${query}` : "/subjects", 303);
-    }
 
-    await createSubject(title);
-    // Straight back to the list, filters intact, so you can add several in a row.
-    filters.set("added", title);
-    return ctx.redirect(`/subjects?${filters}`, 303);
+    if (form.get("intent") === "checks") await saveChecks(form);
+    else await addSubject(form, filters);
+
+    const query = filters.toString();
+    return ctx.redirect(query ? `/subjects?${query}` : "/subjects", 303);
   },
 });
 
+/** Straight back to the list after adding, so you can add several in a row. */
+async function addSubject(form: FormData, filters: URLSearchParams) {
+  const title = String(form.get("title") ?? "").trim();
+  if (!title) return;
+  await createSubject(title);
+  filters.set("added", title);
+}
+
+async function saveChecks(form: FormData) {
+  const subject = await getSubject(Number(form.get("subject")));
+  if (subject) await setSubjectChecks(subject.id, readChecks(form));
+}
+
+/** Ticked boxes arrive as "on"; unticked ones are absent from the form. */
+function readChecks(form: FormData): Checks {
+  const author = Number(form.get("blogAuthor"));
+  return {
+    bloggable: form.has("bloggable"),
+    linkedinWorthy: form.has("linkedinWorthy"),
+    sessionable: form.has("sessionable"),
+    blogWritten: form.has("blogWritten"),
+    blogAuthorId: Number.isInteger(author) && author > 0 ? author : null,
+  };
+}
+
 export default define.page<typeof handler>(function Subjects({ data, url }) {
-  const { subjects, sort, dir, counts, text, stage, added } = data;
+  const { subjects, sort, dir, counts, text, stage, added, people } = data;
 
   /** Sorting stays in the query string, so a sorted view is bookmarkable. */
   const sortLink = (col: SortKey, label: string) => {
@@ -205,6 +232,10 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
           {sortLink("speakers", "speakers")}
           <span>links</span>
           {sortLink("session", "session")}
+          <span class="check-head">bloggable</span>
+          <span class="check-head">linkedin worthy</span>
+          <span class="check-head">sessionable</span>
+          <span>Creator</span>
         </div>
 
         {subjects.length === 0
@@ -216,13 +247,16 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
             </p>
           )
           : subjects.map((s) => (
-            <a
-              key={s.id}
-              href={`/subjects/${s.id}`}
-              class="ui-row ui-row-subjects"
-              data-row="subjects"
-            >
-              <span class="ui-row-title">{s.title}</span>
+            // The title link stretches over the whole row; the checkmark
+            // controls sit above it, since a form can't live inside a link.
+            <div key={s.id} class="ui-row ui-row-subjects subject-row">
+              <a
+                href={`/subjects/${s.id}`}
+                class="ui-row-title row-link"
+                data-row="subjects"
+              >
+                {s.title}
+              </a>
               <span>
                 <StatusBadge stage={s.stage} />
               </span>
@@ -244,7 +278,14 @@ export default define.page<typeof handler>(function Subjects({ data, url }) {
                   ? <span class="text-muted">—</span>
                   : `#${s.sessionId}`}
               </span>
-            </a>
+              <SubjectChecks
+                subjectId={s.id}
+                title={s.title}
+                checks={s.checks}
+                people={people}
+                action={`/subjects${url.search}`}
+              />
+            </div>
           ))}
       </div>
 

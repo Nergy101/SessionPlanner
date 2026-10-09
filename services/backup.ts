@@ -85,6 +85,15 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
+/** Subject columns from 006_subject_checks; older backups lack them. */
+const CHECK_COLUMNS = [
+  "bloggable",
+  "linkedin_worthy",
+  "sessionable",
+  "blog_written",
+  "blog_author_id",
+];
+
 /** Columns added after a backup version was fixed may be missing; null is fine. */
 function optional(
   row: Record<string, unknown>,
@@ -161,7 +170,8 @@ function validateRows(backup: unknown): asserts backup is Backup {
       !isNullableString(row.recap_notes) || !isInteger(row.bounty) ||
       typeof row.created_at !== "string" ||
       typeof row.updated_at !== "string" ||
-      !optional(row, "position", isInteger)
+      !optional(row, "position", isInteger) ||
+      !CHECK_COLUMNS.every((key) => optional(row, key, isInteger))
     ) throw new Error("Invalid subjects row");
   }
   for (const row of tables.subject_links as unknown[]) {

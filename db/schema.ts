@@ -48,6 +48,13 @@ export interface SubjectTable {
    * See 005_running_order_and_time.
    */
   position: number | null;
+  /** 0/1 checkmarks; see 006_subject_checks. */
+  bloggable: Generated<number>;
+  linkedin_worthy: Generated<number>;
+  sessionable: Generated<number>;
+  blog_written: Generated<number>;
+  /** Who is on the blog; null when nobody is. */
+  blog_author_id: number | null;
   created_at: Generated<string>;
   updated_at: Generated<string>;
 }

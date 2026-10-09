@@ -983,9 +983,10 @@
   }
 
   /* ---- dashboard pipeline board: four derived lanes, one visible on mobile ---- */
+  /* Stacked on a phone, what's next comes before the capture bar. */
   .top-row {
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     gap: 16px;
   }
 
@@ -1263,8 +1264,15 @@
   }
 
   .board-search {
+    display: flex;
+    gap: 8px;
     margin-top: 16px;
-    max-width: 520px;
+    max-width: 620px;
+  }
+
+  .board-search .ui-input {
+    flex: 1;
+    min-width: 0;
   }
 
   .board-card[hidden] {
@@ -1351,18 +1359,108 @@
     background: var(--color-surface-2);
   }
 
-  /* ---- subjects list: five columns, stacked rows below 1024px ---- */
+  /* ---- subjects list: nine columns, stacked rows below 1024px ---- */
   .ui-row-subjects {
     display: grid;
     align-items: center;
-    gap: 12px;
-    grid-template-columns: minmax(0, 1.6fr) 120px minmax(0, 1fr) 220px 70px;
+    gap: 10px;
+    grid-template-columns:
+      minmax(0, 1.5fr) 100px minmax(0, 1fr) 132px 52px
+      repeat(3, 84px) 180px;
+  }
+
+  /* The row is a div; its title link covers it, so the whole row still opens
+     the subject. The checkmark controls sit above that cover. */
+  .subject-row {
+    position: relative;
+  }
+
+  .subject-row:hover {
+    background: var(--color-surface-2);
+  }
+
+  .row-link {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .row-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  .subject-checks {
+    display: contents;
+  }
+
+  .check-cell,
+  .blog-cell {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .check-cell {
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .check-cell input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+  }
+
+  .blog-cell .check-cell {
+    flex: none;
+  }
+
+  .blog-author {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .check-failed {
+    color: var(--color-danger-text);
+    font-weight: 700;
+  }
+
+  .check-head {
+    text-align: center;
+  }
+
+  /* The column headers name the boxes on a wide screen. */
+  .check-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   @media (max-width: 1023px) {
     .ui-row-subjects {
       grid-template-columns: minmax(0, 1fr);
       gap: 6px;
+    }
+
+    /* Stacked, the headers are gone from view, so each box says what it is. */
+    .check-cell {
+      justify-content: flex-start;
+    }
+
+    .check-name {
+      position: static;
+      width: auto;
+      height: auto;
+      overflow: visible;
+      clip-path: none;
+      font-size: 13px;
     }
 
     .ui-row-head.ui-row-subjects {
