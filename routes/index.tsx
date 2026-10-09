@@ -1,6 +1,7 @@
 import { page } from "fresh";
 import { define } from "@/utils.ts";
 import {
+  byPosition,
   CLAIM_NAME_MAX,
   createSubject,
   getSubject,
@@ -12,8 +13,6 @@ import {
   type Subject,
 } from "@/services/subjects.ts";
 import {
-  daysAway,
-  daysUntil,
   formatShortDate,
   getUpcomingSessions,
   type Session,
@@ -252,25 +251,15 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
               <p class="lane-hint">{lane.hint}</p>
 
               {items.length
-                ? items.map((subject) => (
-                  <BoardCard
-                    key={subject.id}
-                    subject={subject}
-                    linked={signedIn}
-                  >
-                    {signedIn
-                      ? (
-                        <LaneAction
-                          lane={lane.key}
-                          subject={subject}
-                          freeSession={freeSession}
-                        />
-                      )
-                      : subject.people.length === 0 && (
-                        <ClaimAction subject={subject} />
-                      )}
-                  </BoardCard>
-                ))
+                ? (
+                  <LaneCards
+                    lane={lane.key}
+                    items={items}
+                    upcoming={upcoming}
+                    signedIn={signedIn}
+                    freeSession={freeSession}
+                  />
+                )
                 : (
                   <div class="ui-empty">
                     {query
@@ -291,6 +280,68 @@ function laneHref(lane: Stage, query: string): string {
   const params = new URLSearchParams({ lane });
   if (query) params.set("q", query);
   return `/?${params}`;
+}
+
+interface LaneProps {
+  lane: Stage;
+  items: Subject[];
+  upcoming: Session[];
+  signedIn: boolean;
+  freeSession: Session | undefined;
+}
+
+/** A lane's cards; the planned lane groups them under their session. */
+function LaneCards(props: LaneProps) {
+  if (props.lane !== "planned") {
+    return (
+      <>
+        {props.items.map((s) => <LaneCard key={s.id} {...props} subject={s} />)}
+      </>
+    );
+  }
+  return (
+    <>
+      {groupBySession(props.items, props.upcoming).map((
+        { session, subjects },
+      ) => (
+        <div key={session.id} class="lane-group" data-group>
+          <a href={`/sessions/${session.id}`} class="lane-group-head">
+            #{session.id} · {sessionWhen(session)}
+          </a>
+          {subjects.map((s) => <LaneCard key={s.id} {...props} subject={s} />)}
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** One card with its next step: the organiser's action, or a visitor's claim. */
+function LaneCard(props: LaneProps & { subject: Subject }) {
+  const { lane, subject, signedIn, freeSession } = props;
+  return (
+    <BoardCard subject={subject} linked={signedIn}>
+      {signedIn
+        ? <LaneAction lane={lane} subject={subject} freeSession={freeSession} />
+        : subject.people.length === 0 && <ClaimAction subject={subject} />}
+    </BoardCard>
+  );
+}
+
+/** Upcoming sessions, soonest first, each with its subjects in running order. */
+function groupBySession(subjects: Subject[], upcoming: Session[]) {
+  return upcoming
+    .map((session) => ({
+      session,
+      subjects: subjects.filter((s) => s.sessionId === session.id)
+        .sort(byPosition),
+    }))
+    .filter((group) => group.subjects.length > 0);
+}
+
+/** "Thu 15 Oct, 16:00", or just the date while no time is set. */
+function sessionWhen(session: Session): string {
+  const date = formatShortDate(session.date);
+  return session.startTime ? `${date}, ${session.startTime}` : date;
 }
 
 function emptyText(lane: Stage, signedIn: boolean): string {
@@ -326,12 +377,9 @@ function NextSession({ session }: { session: Session | null }) {
   return (
     <a href={`/sessions/${session.id}`} class="next-strip">
       <span class="font-display text-base font-bold">
-        Next · #{session.id} {formatShortDate(session.date)}
-        {session.startTime && `, ${session.startTime}`}
+        Next · #{session.id} {sessionWhen(session)}
       </span>
-      <span class="text-sm">
-        {filled} of {SESSION_SLOTS} slots · {daysAway(session.date)}
-      </span>
+      <span class="text-sm">{filled} of {SESSION_SLOTS} slots</span>
       <span class="slot-row" aria-hidden="true">
         {Array.from({ length: SESSION_SLOTS }, (_, i) => (
           <span
@@ -437,13 +485,12 @@ function LaneAction({ lane, subject, freeSession }: {
       if (subject.sessionId === null || subject.sessionDate === null) {
         return null;
       }
-      const days = daysUntil(subject.sessionDate);
       return (
         <a
           href={`/sessions/${subject.sessionId}`}
           class="ui-btn ui-btn-next board-next"
         >
-          #{subject.sessionId} · {days === 0 ? "today" : `in ${days}d`}
+          #{subject.sessionId} · {formatShortDate(subject.sessionDate)}
         </a>
       );
     }

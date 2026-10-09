@@ -1207,6 +1207,27 @@
     }
   }
 
+  /* The planned lane, grouped: a session's date above its cards. */
+  .lane-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    border: var(--border-w) dashed var(--color-line);
+    border-radius: 14px;
+  }
+
+  .lane-group[hidden] {
+    display: none;
+  }
+
+  .lane-group-head {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--color-text);
+  }
+
   .board-search {
     margin-top: 16px;
     max-width: 520px;

@@ -33,20 +33,30 @@ export function BoardSearch(props: { query: string; lane: string }) {
   );
 }
 
-/** Hides non-matching cards and recounts each lane. */
+/** Hides non-matching cards, then the counts and groups follow. */
 function filterBoard(needle: string) {
+  for (const card of document.querySelectorAll<HTMLElement>("[data-search]")) {
+    card.hidden = !card.dataset.search!.includes(needle);
+  }
+  recountLanes();
+  hideEmptyGroups();
+}
+
+/** Each lane's count (in its head and its tab) becomes its visible cards. */
+function recountLanes() {
   for (const lane of document.querySelectorAll<HTMLElement>("[data-lane]")) {
-    let shown = 0;
-    for (const card of lane.querySelectorAll<HTMLElement>("[data-search]")) {
-      const match = card.dataset.search!.includes(needle);
-      card.hidden = !match;
-      if (match) shown++;
+    const shown = lane.querySelectorAll("[data-search]:not([hidden])").length;
+    const counts = `[data-lane-count="${lane.dataset.lane}"]`;
+    for (const count of document.querySelectorAll(counts)) {
+      count.textContent = String(shown);
     }
-    for (
-      const count of document.querySelectorAll(
-        `[data-lane-count="${lane.dataset.lane}"]`,
-      )
-    ) count.textContent = String(shown);
+  }
+}
+
+/** A session group in the planned lane hides once none of its cards show. */
+function hideEmptyGroups() {
+  for (const group of document.querySelectorAll<HTMLElement>("[data-group]")) {
+    group.hidden = !group.querySelector("[data-search]:not([hidden])");
   }
 }
 
