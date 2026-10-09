@@ -33,6 +33,9 @@ export function Combobox(props: {
   options: ComboOption[];
   placeholder?: string;
   autofocus?: boolean;
+  /** Replaces the input's default classes, e.g. inside the capture bar. */
+  inputClass?: string;
+  maxLength?: number;
   /** Shown as the last row when the typed text matches nothing. */
   newLabel?: (typed: string) => string;
 }) {
@@ -76,7 +79,8 @@ export function Combobox(props: {
         autofocus={props.autofocus}
         placeholder={props.placeholder}
         value={props.value.value}
-        class="ui-input"
+        maxLength={props.maxLength}
+        class={props.inputClass ?? "ui-input"}
         onFocus={() => {
           open.value = true;
           highlight.value = -1;

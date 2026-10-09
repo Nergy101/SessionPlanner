@@ -405,8 +405,11 @@ export async function setSubjectPeople(
   );
 }
 
-/** Longest name a visitor may claim a subject under. */
-export const CLAIM_NAME_MAX = 60;
+/** Longest speaker name a visitor may type. */
+export const SPEAKER_NAME_MAX = 60;
+
+/** Longest title a visitor may suggest. */
+export const SUGGEST_TITLE_MAX = 120;
 
 /**
  * A visitor volunteers to present an idea. Only ever fills an empty speaker
@@ -415,13 +418,33 @@ export const CLAIM_NAME_MAX = 60;
  */
 export async function claimSubject(id: number, name: string): Promise<boolean> {
   const speaker = normalizeName(name);
-  if (!speaker || speaker.length > CLAIM_NAME_MAX) return false;
+  if (!speaker || speaker.length > SPEAKER_NAME_MAX) return false;
 
   const subject = await getSubject(id);
   if (!subject || subject.people.length > 0) return false;
 
   await setSubjectPeople(id, [speaker]);
   return true;
+}
+
+/**
+ * Anyone, signed in or not, adds an idea, optionally with who presents it.
+ * Null when the title is blank or either value is too long.
+ */
+export async function suggestSubject(
+  title: string,
+  speaker: string,
+): Promise<number | null> {
+  const cleanTitle = title.replace(/\s+/g, " ").trim();
+  const name = normalizeName(speaker);
+  if (
+    !cleanTitle || cleanTitle.length > SUGGEST_TITLE_MAX ||
+    name.length > SPEAKER_NAME_MAX
+  ) return null;
+
+  const id = await createSubject(cleanTitle);
+  if (name) await setSubjectPeople(id, [name]);
+  return id;
 }
 
 /**

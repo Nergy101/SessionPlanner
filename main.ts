@@ -10,14 +10,16 @@ export const app = new App<State>();
 app.use(staticFiles());
 
 /**
- * What visitors without the password may do, by path: read the dashboard
- * (never change it), claim an idea that has no speaker yet (claimSubject only
- * fills empty slots), and sign in or out. Every planning view belongs to the
- * signed-in organiser.
+ * What visitors without the password may do, by path: read the dashboard,
+ * suggest a new idea (suggestSubject only ever adds), claim an idea that has no
+ * speaker yet (claimSubject only fills empty slots), and sign in or out. Every
+ * planning view and every change to existing plans belongs to the signed-in
+ * organiser.
  */
 const PUBLIC_METHODS = new Map<string, readonly string[]>([
   ["/", ["GET", "HEAD"]],
   ["/claim", ["POST"]],
+  ["/suggest", ["POST"]],
   ["/login", ["GET", "HEAD", "POST"]],
   ["/logout", ["GET", "HEAD", "POST"]],
 ]);

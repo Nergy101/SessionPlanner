@@ -1018,6 +1018,31 @@
     background: transparent;
   }
 
+  .capture-form {
+    flex-wrap: wrap;
+  }
+
+  .capture-title {
+    flex: 1 1 14rem;
+  }
+
+  /* The speaker box sits behind a dashed divider, narrower than the title. */
+  .capture-speaker {
+    flex: 1 1 10rem;
+    max-width: 16rem;
+    border-left: 2px dashed var(--color-line);
+    padding-left: 10px;
+  }
+
+  /* On a phone the title gets its own row, so the divider would lead nowhere. */
+  @media (max-width: 599px) {
+    .capture-speaker {
+      max-width: none;
+      border-left: 0;
+      padding-left: 0;
+    }
+  }
+
   .next-strip {
     display: flex;
     flex: none;

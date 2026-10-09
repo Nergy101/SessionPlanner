@@ -448,6 +448,25 @@ test("blank, overlong and unknown claims are refused", async () => {
   assertEquals((await subjects.getSubject(id))!.people, []);
 });
 
+test("a suggestion adds an idea, with its speaker when given", async () => {
+  const plain = await subjects.suggestSubject("  Feature   flags ", "");
+  const spoken = await subjects.suggestSubject(
+    "Edge caching",
+    " Ada  Lovelace",
+  );
+  const a = (await subjects.getSubject(plain!))!;
+  const b = (await subjects.getSubject(spoken!))!;
+  assertEquals([a.title, a.stage], ["Feature flags", "idea"]);
+  assertEquals(b.people.map((p) => p.name), ["Ada Lovelace"]);
+  assertEquals(b.stage, "speaker");
+});
+
+test("blank or overlong suggestions are refused", async () => {
+  assertEquals(await subjects.suggestSubject("   ", "Ada"), null);
+  assertEquals(await subjects.suggestSubject("x".repeat(121), ""), null);
+  assertEquals(await subjects.suggestSubject("Fine", "x".repeat(61)), null);
+});
+
 // Close the shared connection so the test process can exit.
 globalThis.addEventListener("unload", () => {
   db.destroy();

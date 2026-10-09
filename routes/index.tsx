@@ -2,15 +2,15 @@ import { page } from "fresh";
 import { define } from "@/utils.ts";
 import {
   byPosition,
-  CLAIM_NAME_MAX,
-  createSubject,
   getSubject,
   listSubjects,
   matchesSearch,
   setSubjectPeople,
   setSubjectSession,
+  SPEAKER_NAME_MAX,
   type Stage,
   type Subject,
+  SUGGEST_TITLE_MAX,
 } from "@/services/subjects.ts";
 import {
   formatShortDate,
@@ -18,10 +18,10 @@ import {
   type Session,
   SESSION_SLOTS,
 } from "@/services/sessions.ts";
-import { normalizeName } from "@/services/people.ts";
+import { listPeople, normalizeName } from "@/services/people.ts";
 import { BoardCard } from "@/components/BoardCard.tsx";
 import PeoplePicker from "@/islands/PeoplePicker.tsx";
-import QuickAdd from "@/islands/QuickAdd.tsx";
+import CaptureIdea from "@/islands/CaptureIdea.tsx";
 import BoardSearch from "@/islands/BoardSearch.tsx";
 
 /**
@@ -39,102 +39,116 @@ const isLane = (value: string | null): value is Stage =>
   LANES.some((lane) => lane.key === value);
 
 /**
- * Visitors without the password get this page read-only (see the gate in main.ts):
- * the same lanes, but no capture and no next-step controls.
+ * Visitors without the password see the same lanes and can capture ideas (via
+ * /suggest) and claim them (via /claim), but get no next-step controls (see the
+ * gate in main.ts).
  */
 export const handler = define.handlers({
   async GET(ctx) {
-    const [upcoming, idea, speaker, planned, presented] = await Promise.all([
-      getUpcomingSessions(),
-      listSubjects({ stage: "idea" }),
-      listSubjects({ stage: "speaker" }),
-      listSubjects({ stage: "planned" }),
-      listSubjects({ stage: "presented" }),
-    ]);
-    const requested = ctx.url.searchParams.get("lane");
-    const query = ctx.url.searchParams.get("q")?.trim() ?? "";
-    const matching = (list: Subject[]) =>
-      list.filter((s) => matchesSearch(s, query));
+    const { upcoming, lanes } = await loadBoard();
+    const params = ctx.url.searchParams;
+    const query = params.get("q")?.trim() ?? "";
+    const board = Object.values(lanes).flat();
 
     return page({
       next: upcoming[0] ?? null,
       upcoming,
-      lanes: {
-        idea: matching(idea),
-        speaker: matching(speaker),
-        planned: matching(planned),
-        presented: matching(presented),
-      },
-      activeLane: isLane(requested) ? requested : "idea",
+      lanes: matchingLanes(lanes, query),
+      activeLane: activeLane(params.get("lane")),
       query,
-      added: ctx.url.searchParams.get("added"),
-      scheduled: ctx.url.searchParams.get("scheduled"),
-      speakerAdded: ctx.url.searchParams.get("speaker"),
-      unclaimed: ctx.url.searchParams.has("unclaimed"),
+      speakerOptions: await speakerOptions(ctx.state.signedIn, board),
+      ...flash(params),
     });
   },
 
   /**
-   * The capture box posts here and comes straight back, so you can fire off several
-   * topics in a row. A `@name` token in the capture adds that speaker in the same
-   * step. The lane cards post here too: `intent=schedule` puts a speaker's topic on
-   * a session, `intent=speaker` adds a speaker to an idea.
+   * The lane cards post here; each intent's handler returns where to go next.
+   * Capturing a new idea goes to /suggest.
    */
   async POST(ctx) {
     const form = await ctx.req.formData();
-
-    if (form.get("intent") === "schedule") {
-      const subjectId = Number(form.get("subject"));
-      const sessionId = Number(form.get("session"));
-      // Only future sessions are on offer, so only accept those.
-      const session = (await getUpcomingSessions()).find((s) =>
-        s.id === sessionId
-      );
-      if (!subjectId || !session) return ctx.redirect("/", 303);
-
-      await setSubjectSession(subjectId, sessionId);
-      return ctx.redirect(
-        `/?scheduled=${encodeURIComponent(formatShortDate(session.date))}`,
-        303,
-      );
-    }
-
-    if (form.get("intent") === "speaker") {
-      const subject = await getSubject(Number(form.get("subject")));
-      const added = form.getAll("people").map((n) => normalizeName(String(n)))
-        .filter(Boolean);
-      if (!subject || !added.length) return ctx.redirect("/", 303);
-
-      // Add to whoever is already on it; never drop an existing speaker.
-      await setSubjectPeople(subject.id, [
-        ...subject.people.map((p) => p.name),
-        ...added,
-      ]);
-      return ctx.redirect(
-        `/?speaker=${encodeURIComponent(added.join(", "))}`,
-        303,
-      );
-    }
-
-    const { title, speakers } = parseCapture(String(form.get("title") ?? ""));
-    if (!title) return ctx.redirect("/", 303);
-
-    const id = await createSubject(title);
-    if (speakers.length) await setSubjectPeople(id, speakers);
-    return ctx.redirect(`/?added=${encodeURIComponent(title)}`, 303);
+    const action = ACTIONS.get(String(form.get("intent")));
+    return ctx.redirect(action ? await action(form) : "/", 303);
   },
 });
 
+const ACTIONS = new Map<string, (form: FormData) => Promise<string>>([
+  ["schedule", scheduleSubject],
+  ["speaker", addSpeakers],
+]);
+
+/** Puts a speaker's topic on a session; only future sessions are on offer. */
+async function scheduleSubject(form: FormData): Promise<string> {
+  const subjectId = Number(form.get("subject"));
+  const sessionId = Number(form.get("session"));
+  const session = (await getUpcomingSessions()).find((s) => s.id === sessionId);
+  if (!subjectId || !session) return "/";
+
+  await setSubjectSession(subjectId, sessionId);
+  return `/?scheduled=${encodeURIComponent(formatShortDate(session.date))}`;
+}
+
+/** Adds speakers to whoever is already on it; never drops an existing one. */
+async function addSpeakers(form: FormData): Promise<string> {
+  const subject = await getSubject(Number(form.get("subject")));
+  const added = form.getAll("people").map((n) => normalizeName(String(n)))
+    .filter(Boolean);
+  if (!subject || !added.length) return "/";
+
+  await setSubjectPeople(subject.id, [
+    ...subject.people.map((p) => p.name),
+    ...added,
+  ]);
+  return `/?speaker=${encodeURIComponent(added.join(", "))}`;
+}
+
+async function loadBoard() {
+  const [upcoming, idea, speaker, planned, presented] = await Promise.all([
+    getUpcomingSessions(),
+    listSubjects({ stage: "idea" }),
+    listSubjects({ stage: "speaker" }),
+    listSubjects({ stage: "planned" }),
+    listSubjects({ stage: "presented" }),
+  ]);
+  return { upcoming, lanes: { idea, speaker, planned, presented } };
+}
+
+const activeLane = (requested: string | null): Stage =>
+  isLane(requested) ? requested : "idea";
+
+/** Each lane narrowed to the cards matching the search; blank keeps them all. */
+function matchingLanes(lanes: Record<Stage, Subject[]>, query: string) {
+  const matching = (list: Subject[]) =>
+    list.filter((s) => matchesSearch(s, query));
+  return {
+    idea: matching(lanes.idea),
+    speaker: matching(lanes.speaker),
+    planned: matching(lanes.planned),
+    presented: matching(lanes.presented),
+  };
+}
+
+/** The one-off messages a redirect back here carries in its query string. */
+function flash(params: URLSearchParams) {
+  return {
+    added: params.get("added"),
+    scheduled: params.get("scheduled"),
+    speakerAdded: params.get("speaker"),
+    unclaimed: params.has("unclaimed"),
+  };
+}
+
 /**
- * `Testcontainers in CI @Jan de Vries`: everything before the first `@` is the
- * title, everything after it is one speaker name (so it may contain spaces).
+ * Names the capture bar offers as speaker. The organiser gets everyone;
+ * visitors only the names the board already shows them.
  */
-function parseCapture(raw: string) {
-  const at = raw.indexOf("@");
-  const title = (at === -1 ? raw : raw.slice(0, at)).replace(/\s+/g, " ")
-    .trim();
-  const speaker = at === -1 ? "" : normalizeName(raw.slice(at + 1));
-  return { title, speakers: speaker ? [speaker] : [] };
+async function speakerOptions(
+  signedIn: boolean,
+  board: Subject[],
+): Promise<string[]> {
+  if (signedIn) return (await listPeople()).map((p) => p.name);
+  const onBoard = board.flatMap((s) => s.people.map((p) => p.name));
+  return [...new Set(onBoard)].sort((a, b) => a.localeCompare(b));
 }
 
 export default define.page<typeof handler>(function Dashboard({ data, state }) {
@@ -144,6 +158,7 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
     lanes,
     activeLane,
     query,
+    speakerOptions,
     added,
     scheduled,
     speakerAdded,
@@ -158,25 +173,12 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
       <h1 class="sr-only">Dashboard</h1>
 
       <div class="top-row">
-        {signedIn
-          ? (
-            <QuickAdd
-              action="/"
-              autofocus
-              placeholder="Capture an idea… ⏎ to add"
-              label="Add"
-              class="capture"
-              inputClass="ui-input capture-input"
-            />
-          )
-          : (
-            <div class="capture">
-              <span class="capture-input text-muted">
-                Sign in to capture an idea…
-              </span>
-              <a href="/login" class="ui-btn ui-btn-primary">Sign in</a>
-            </div>
-          )}
+        <CaptureIdea
+          people={speakerOptions}
+          titleMax={SUGGEST_TITLE_MAX}
+          speakerMax={SPEAKER_NAME_MAX}
+          autofocus={signedIn}
+        />
         <NextSession session={next} />
       </div>
 
@@ -392,11 +394,6 @@ function NextSession({ session }: { session: Session | null }) {
   );
 }
 
-/**
- * The one next-step control on a card; each lane has exactly one. Idea adds a
- * speaker inline, has-speaker plans onto a session, planned links to its session,
- * presented asks for a recording.
- */
 /** For visitors: put your own name on an idea nobody is presenting yet. */
 function ClaimAction({ subject }: { subject: Subject }) {
   return (
@@ -416,7 +413,7 @@ function ClaimAction({ subject }: { subject: Subject }) {
           id={`claim-${subject.id}`}
           name="name"
           required
-          maxlength={CLAIM_NAME_MAX}
+          maxlength={SPEAKER_NAME_MAX}
           autocomplete="name"
           placeholder="e.g. Jan de Vries"
           class="ui-input"
@@ -429,6 +426,10 @@ function ClaimAction({ subject }: { subject: Subject }) {
   );
 }
 
+/**
+ * The next-step control on a card. Idea adds a speaker inline, has-speaker
+ * plans onto a session, presented asks for a recording; planned has none.
+ */
 function LaneAction({ lane, subject, freeSession }: {
   lane: Stage;
   subject: Subject;
@@ -436,84 +437,82 @@ function LaneAction({ lane, subject, freeSession }: {
 }) {
   switch (lane) {
     case "idea":
-      return (
-        <details class="board-speaker">
-          <summary class="ui-btn ui-btn-next board-next">+ speaker</summary>
-          <form method="post" action="/" class="mt-2">
-            <input type="hidden" name="intent" value="speaker" />
-            <input type="hidden" name="subject" value={subject.id} />
-            <PeoplePicker
-              initial={[]}
-              autoSubmit
-              placeholder="assign a speaker…"
-              inputClass="ui-input"
-            />
-          </form>
-        </details>
-      );
-
+      return <AddSpeaker subject={subject} />;
     case "speaker":
-      // With no session free, the subject page is where a date gets picked.
-      if (!freeSession) {
-        return (
-          <a
-            href={`/subjects/${subject.id}`}
-            class="ui-btn ui-btn-next board-next"
-          >
-            plan →
-          </a>
-        );
-      }
-      return (
-        <form method="post" action="/" class="board-act">
-          <input type="hidden" name="intent" value="schedule" />
-          <input type="hidden" name="subject" value={subject.id} />
-          <input type="hidden" name="session" value={freeSession.id} />
-          <button
-            type="submit"
-            class="ui-btn ui-btn-next board-next"
-            title={`Plan on #${freeSession.id}, ${
-              formatShortDate(freeSession.date)
-            }`}
-          >
-            plan →
-          </button>
-        </form>
-      );
-
-    case "planned": {
-      if (subject.sessionId === null || subject.sessionDate === null) {
-        return null;
-      }
-      return (
-        <a
-          href={`/sessions/${subject.sessionId}`}
-          class="ui-btn ui-btn-next board-next"
-        >
-          #{subject.sessionId} · {formatShortDate(subject.sessionDate)}
-        </a>
-      );
-    }
-
+      return <PlanSubject subject={subject} freeSession={freeSession} />;
+    case "planned":
+      // The session's group header already links to it.
+      return null;
     case "presented":
-      return subject.recordingUrl
-        ? (
-          <a
-            href={subject.recordingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="ui-btn ui-btn-next board-next"
-          >
-            recording ✓
-          </a>
-        )
-        : (
-          <a
-            href={`/subjects/${subject.id}`}
-            class="ui-btn ui-btn-next board-next"
-          >
-            add recording
-          </a>
-        );
+      return <RecordingLink subject={subject} />;
   }
+}
+
+function AddSpeaker({ subject }: { subject: Subject }) {
+  return (
+    <details class="board-speaker">
+      <summary class="ui-btn ui-btn-next board-next">+ speaker</summary>
+      <form method="post" action="/" class="mt-2">
+        <input type="hidden" name="intent" value="speaker" />
+        <input type="hidden" name="subject" value={subject.id} />
+        <PeoplePicker
+          initial={[]}
+          autoSubmit
+          placeholder="assign a speaker…"
+          inputClass="ui-input"
+        />
+      </form>
+    </details>
+  );
+}
+
+/** Plans onto the next free session; with none free, the subject page picks a date. */
+function PlanSubject({ subject, freeSession }: {
+  subject: Subject;
+  freeSession: Session | undefined;
+}) {
+  if (!freeSession) {
+    return (
+      <a href={`/subjects/${subject.id}`} class="ui-btn ui-btn-next board-next">
+        plan →
+      </a>
+    );
+  }
+  return (
+    <form method="post" action="/" class="board-act">
+      <input type="hidden" name="intent" value="schedule" />
+      <input type="hidden" name="subject" value={subject.id} />
+      <input type="hidden" name="session" value={freeSession.id} />
+      <button
+        type="submit"
+        class="ui-btn ui-btn-next board-next"
+        title={`Plan on #${freeSession.id}, ${
+          formatShortDate(freeSession.date)
+        }`}
+      >
+        plan →
+      </button>
+    </form>
+  );
+}
+
+/** Opens the recording, or the subject page to add one. */
+function RecordingLink({ subject }: { subject: Subject }) {
+  if (!subject.recordingUrl) {
+    return (
+      <a href={`/subjects/${subject.id}`} class="ui-btn ui-btn-next board-next">
+        add recording
+      </a>
+    );
+  }
+  return (
+    <a
+      href={subject.recordingUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="ui-btn ui-btn-next board-next"
+    >
+      recording ✓
+    </a>
+  );
 }
