@@ -5,7 +5,7 @@ import {
   searchText,
   type Subject,
 } from "@/services/subjects.ts";
-import { WaveAvatar } from "./WaveAvatar.tsx";
+import { PersonAvatar } from "./PersonAvatar.tsx";
 
 /** Links shown on a card before "+N more". */
 const LINK_PREVIEW = 3;
@@ -60,7 +60,7 @@ export function BoardCard({ subject, linked, children }: {
           {subject.people.length
             ? subject.people.map((person) => (
               <span key={person.id} class="board-person">
-                <WaveAvatar personId={person.id} size={24} />
+                <PersonAvatar personId={person.id} size={24} />
                 <span>{person.name}</span>
               </span>
             ))
