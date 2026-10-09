@@ -1,6 +1,7 @@
 import { page } from "fresh";
 import { define } from "@/utils.ts";
 import {
+  CLAIM_NAME_MAX,
   createSubject,
   getSubject,
   listSubjects,
@@ -70,6 +71,7 @@ export const handler = define.handlers({
       added: ctx.url.searchParams.get("added"),
       scheduled: ctx.url.searchParams.get("scheduled"),
       speakerAdded: ctx.url.searchParams.get("speaker"),
+      unclaimed: ctx.url.searchParams.has("unclaimed"),
     });
   },
 
@@ -146,6 +148,7 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
     added,
     scheduled,
     speakerAdded,
+    unclaimed,
   } = data;
   const signedIn = state.signedIn;
   // The first future session with room left: where "plan →" goes.
@@ -177,6 +180,13 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
           )}
         <NextSession session={next} />
       </div>
+
+      {unclaimed && (
+        <p role="alert" class="ui-alert mt-3">
+          That one couldn't be claimed: it may already have a speaker, or the
+          name was empty.
+        </p>
+      )}
 
       {(added || scheduled || speakerAdded) && (
         <p class="ui-hint mt-3">
@@ -248,13 +258,17 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
                     subject={subject}
                     linked={signedIn}
                   >
-                    {signedIn && (
-                      <LaneAction
-                        lane={lane.key}
-                        subject={subject}
-                        freeSession={freeSession}
-                      />
-                    )}
+                    {signedIn
+                      ? (
+                        <LaneAction
+                          lane={lane.key}
+                          subject={subject}
+                          freeSession={freeSession}
+                        />
+                      )
+                      : subject.people.length === 0 && (
+                        <ClaimAction subject={subject} />
+                      )}
                   </BoardCard>
                 ))
                 : (
@@ -335,6 +349,38 @@ function NextSession({ session }: { session: Session | null }) {
  * speaker inline, has-speaker plans onto a session, planned links to its session,
  * presented asks for a recording.
  */
+/** For visitors: put your own name on an idea nobody is presenting yet. */
+function ClaimAction({ subject }: { subject: Subject }) {
+  return (
+    <details class="board-speaker">
+      <summary class="ui-btn ui-btn-next board-next">claim</summary>
+      <form
+        method="post"
+        action="/claim"
+        class="mt-2 flex flex-col gap-2"
+        data-require="name"
+      >
+        <input type="hidden" name="subject" value={subject.id} />
+        <label class="ui-label" for={`claim-${subject.id}`}>
+          Your name — you'll present this one
+        </label>
+        <input
+          id={`claim-${subject.id}`}
+          name="name"
+          required
+          maxlength={CLAIM_NAME_MAX}
+          autocomplete="name"
+          placeholder="e.g. Jan de Vries"
+          class="ui-input"
+        />
+        <button type="submit" class="ui-btn ui-btn-primary self-start">
+          I'll present it
+        </button>
+      </form>
+    </details>
+  );
+}
+
 function LaneAction({ lane, subject, freeSession }: {
   lane: Stage;
   subject: Subject;

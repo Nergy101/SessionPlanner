@@ -405,6 +405,25 @@ export async function setSubjectPeople(
   );
 }
 
+/** Longest name a visitor may claim a subject under. */
+export const CLAIM_NAME_MAX = 60;
+
+/**
+ * A visitor volunteers to present an idea. Only ever fills an empty speaker
+ * slot, so a claim can't push anyone off a subject. False when the subject is
+ * gone, already has a speaker, or the name is blank or too long.
+ */
+export async function claimSubject(id: number, name: string): Promise<boolean> {
+  const speaker = normalizeName(name);
+  if (!speaker || speaker.length > CLAIM_NAME_MAX) return false;
+
+  const subject = await getSubject(id);
+  if (!subject || subject.people.length > 0) return false;
+
+  await setSubjectPeople(id, [speaker]);
+  return true;
+}
+
 /**
  * Pass null to unschedule; the stage falls back to speaker or idea. A subject
  * that joins a session goes to the end of its running order.

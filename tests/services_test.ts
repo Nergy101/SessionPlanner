@@ -424,6 +424,30 @@ test("board search matches title, speaker and description", async () => {
   assert(!subjects.matchesSearch(s, "kubernetes"));
 });
 
+test("a visitor can claim an idea with no speaker", async () => {
+  const id = await subjects.createSubject("Feature flags");
+  assert(await subjects.claimSubject(id, "  Ada   Lovelace "));
+  const s = (await subjects.getSubject(id))!;
+  assertEquals(s.people.map((p) => p.name), ["Ada Lovelace"]);
+  assertEquals(s.stage, "speaker");
+});
+
+test("a claim never replaces an existing speaker", async () => {
+  const id = await subjects.createSubject("Feature flags");
+  await subjects.setSubjectPeople(id, ["Jan de Vries"]);
+  assert(!await subjects.claimSubject(id, "Mallory"));
+  const s = (await subjects.getSubject(id))!;
+  assertEquals(s.people.map((p) => p.name), ["Jan de Vries"]);
+});
+
+test("blank, overlong and unknown claims are refused", async () => {
+  const id = await subjects.createSubject("Feature flags");
+  assert(!await subjects.claimSubject(id, "   "));
+  assert(!await subjects.claimSubject(id, "x".repeat(61)));
+  assert(!await subjects.claimSubject(999_999, "Ada"));
+  assertEquals((await subjects.getSubject(id))!.people, []);
+});
+
 // Close the shared connection so the test process can exit.
 globalThis.addEventListener("unload", () => {
   db.destroy();
