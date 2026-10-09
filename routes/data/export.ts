@@ -1,5 +1,5 @@
 import { define } from "@/utils.ts";
-import { exportData } from "@/services/backup.ts";
+import { backupFilename, exportData } from "@/services/backup.ts";
 
 export const handler = define.handlers({
   async GET() {
@@ -7,8 +7,7 @@ export const handler = define.handlers({
     return new Response(JSON.stringify(backup, null, 2) + "\n", {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        "Content-Disposition":
-          'attachment; filename="sessionplanner-backup.json"',
+        "Content-Disposition": `attachment; filename="${backupFilename()}"`,
         "Cache-Control": "no-store",
       },
     });

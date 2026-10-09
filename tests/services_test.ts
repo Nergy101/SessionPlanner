@@ -21,6 +21,7 @@ if (error) throw error;
 const subjects = await import("@/services/subjects.ts");
 const people = await import("@/services/people.ts");
 const sessions = await import("@/services/sessions.ts");
+const backup = await import("@/services/backup.ts");
 type SortKey = import("@/services/subjects.ts").SortKey;
 type SortDir = import("@/services/subjects.ts").SortDir;
 type Stage = import("@/services/subjects.ts").Stage;
@@ -310,6 +311,103 @@ test("foreign keys are enforced, not silently ignored", async () => {
     threw = true;
   }
   assert(threw, "inserting a link for a non-existent subject should fail");
+});
+
+Deno.test("pasting a recording link sets only the recording, and blank clears it", async () => {
+  await reset();
+  const id = await subjects.createSubject("Recorded talk");
+  await subjects.updateSubjectDetails(id, {
+    title: "Recorded talk",
+    slidesUrl: "https://example.com/slides",
+  });
+
+  await subjects.setSubjectRecording(id, " https://example.com/rec ");
+  let s = await subjects.getSubject(id);
+  assertEquals(s?.recordingUrl, "https://example.com/rec");
+  assertEquals(s?.slidesUrl, "https://example.com/slides");
+
+  await subjects.setSubjectRecording(id, "  ");
+  s = await subjects.getSubject(id);
+  assertEquals(s?.recordingUrl, null);
+});
+
+Deno.test("the export card counts what a backup holds", async () => {
+  await reset();
+  await db.deleteFrom("notes").execute();
+  const sessionId = await sessions.createSession(FUTURE, "");
+  const id = await subjects.createSubject("Counted", sessionId);
+  await subjects.setSubjectPeople(id, ["Ann", "Bo"]);
+
+  assertEquals(await backup.countRecords(), {
+    subjects: 1,
+    sessions: 1,
+    people: 2,
+    notes: 0,
+  });
+});
+
+Deno.test("backup files are named by date", () => {
+  assertEquals(
+    backup.backupFilename(new Date("2026-10-08T12:00:00Z")),
+    "session-planner-2026-10-08.json",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Running order and start time
+// ---------------------------------------------------------------------------
+
+const agenda = async (sessionId: number) =>
+  (await sessions.getSession(sessionId))!.subjects.map((s) => s.title);
+
+test("subjects join the end of the running order", async () => {
+  const sessionId = await sessions.createSession(FUTURE);
+  await subjects.createSubject("First", sessionId);
+  const second = await subjects.createSubject("Second");
+  await subjects.createSubject("Third", sessionId);
+  await subjects.setSubjectSession(second, sessionId);
+  assertEquals(await agenda(sessionId), ["First", "Third", "Second"]);
+});
+
+test("moving swaps with the neighbour and stops at the ends", async () => {
+  const sessionId = await sessions.createSession(FUTURE);
+  const first = await subjects.createSubject("First", sessionId);
+  await subjects.createSubject("Second", sessionId);
+  const third = await subjects.createSubject("Third", sessionId);
+
+  await subjects.moveSubject(third, -1);
+  assertEquals(await agenda(sessionId), ["First", "Third", "Second"]);
+  await subjects.moveSubject(first, -1);
+  await subjects.moveSubject(third, -1);
+  assertEquals(await agenda(sessionId), ["Third", "First", "Second"]);
+});
+
+test("unscheduling clears the position", async () => {
+  const sessionId = await sessions.createSession(FUTURE);
+  const id = await subjects.createSubject("Gone", sessionId);
+  await subjects.setSubjectSession(id, null);
+  assertEquals((await subjects.getSubject(id))!.position, null);
+});
+
+test("rescheduling keeps the notes and stores the start time", async () => {
+  const id = await sessions.createSession(FUTURE, "Big room");
+  await sessions.rescheduleSession(id, {
+    date: "2099-02-02",
+    startTime: "16:30",
+  });
+  const s = (await sessions.getSession(id))!;
+  assertEquals([s.date, s.startTime, s.notes], [
+    "2099-02-02",
+    "16:30",
+    "Big room",
+  ]);
+});
+
+Deno.test("only real HH:MM times parse", () => {
+  assertEquals(sessions.parseTime(" 09:05 "), "09:05");
+  assertEquals(sessions.parseTime("24:00"), null);
+  assertEquals(sessions.parseTime(""), null);
+  assertEquals(sessions.parseTime(null), null);
 });
 
 // Close the shared connection so the test process can exit.

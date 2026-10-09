@@ -16,12 +16,20 @@ export function QuickAdd(props: {
   autofocus?: boolean;
   /** Lets one route handler tell this apart from the page's other POSTs. */
   intent?: string;
+  /** Extra classes on the form, e.g. the capture bar's surface. */
+  class?: string;
+  /** Replaces the input's default classes. */
+  inputClass?: string;
 }) {
   const value = useSignal("");
   const name = props.name ?? "title";
 
   return (
-    <form method="post" action={props.action} class="flex flex-wrap gap-2">
+    <form
+      method="post"
+      action={props.action}
+      class={`flex flex-wrap gap-2 ${props.class ?? ""}`}
+    >
       {props.intent && (
         <input type="hidden" name="intent" value={props.intent} />
       )}
@@ -34,7 +42,7 @@ export function QuickAdd(props: {
         aria-label={props.placeholder ?? "Add a topic idea"}
         value={value.value}
         onInput={(e) => value.value = e.currentTarget.value}
-        class="ui-input min-w-[16rem] flex-1"
+        class={props.inputClass ?? "ui-input min-w-[16rem] flex-1"}
       />
       <button
         type="submit"

@@ -3,18 +3,25 @@ import { define } from "@/utils.ts";
 import {
   deleteSubject,
   getSubject,
+  idleSticker,
   replaceSubjectLinks,
   setSubjectPeople,
   setSubjectSession,
+  type Stage,
   STAGE_LABEL,
-  STAGE_MEANING,
   STAGE_ORDER,
+  type Subject,
   updateSubjectDetails,
 } from "@/services/subjects.ts";
-import { formatShortDate, listSessions } from "@/services/sessions.ts";
-import { StatusBadge } from "@/components/StatusBadge.tsx";
+import {
+  formatShortDate,
+  formatTimestamp,
+  isPast,
+  listSessions,
+  type Session,
+  SESSION_SLOTS,
+} from "@/services/sessions.ts";
 import PeoplePicker from "@/islands/PeoplePicker.tsx";
-import AutoSubmitSelect from "@/islands/AutoSubmitSelect.tsx";
 import LinkEditor from "@/islands/LinkEditor.tsx";
 import ConfirmButton from "@/islands/ConfirmButton.tsx";
 
@@ -84,202 +91,299 @@ export const handler = define.handlers({
   },
 });
 
+/** The cyan next-step card's heading, per stage. */
+const NEXT_STEP: Record<Stage, string> = {
+  idea: "Next step: find a speaker",
+  speaker: "Next step: put it on a date",
+  planned: "Next step: present it",
+  presented: "Done: it was presented",
+};
+
 export default define.page<typeof handler>(function SubjectDetail({ data }) {
   const { subject, sessions, saved } = data;
-  const showRecap = subject.stage === "presented";
-  const stageIndex = STAGE_ORDER.indexOf(subject.stage);
+  const idle = idleSticker(subject);
 
   return (
     <>
-      <div class="mb-6">
-        <p class="ui-eyebrow">
-          <a href="/subjects" class="text-text no-underline hover:underline">
-            subjects
-          </a>{" "}
-          / #{subject.id}
-        </p>
-        <div class="mt-1 flex flex-wrap items-start justify-between gap-4">
-          <h1 class="text-3xl tracking-tight">{subject.title}</h1>
-          <StatusBadge stage={subject.stage} />
-        </div>
-        <p class="mt-1 text-muted">{STAGE_MEANING[subject.stage]}</p>
+      <p class="ui-eyebrow mb-4">
+        <a href="/subjects">Subjects</a> / #{subject.id}
+      </p>
+
+      <div class="mb-4 flex flex-wrap items-center gap-3">
+        <Stepper stage={subject.stage} />
+        {idle !== null && <span class="sticker">idle {idle}d!</span>}
       </div>
 
-      {/* Stage stepper: ✓ for completed, a shadow on the current stage, dashed and muted for the future. */}
-      <ol class="mb-6 flex flex-wrap gap-2" aria-label="Stage">
-        {STAGE_ORDER.map((s, i) => {
-          const current = i === stageIndex;
-          const done = i < stageIndex;
-          const cls = current
-            ? `stage-${s} ui-badge ui-badge-${s} shadow-[var(--shadow-md)]`
-            : done
-            ? "ui-badge bg-surface-2 text-text border border-line"
-            : "ui-badge border border-dashed border-line text-muted";
-          return (
-            <li
-              key={s}
-              class={cls}
-              aria-current={current ? "step" : undefined}
-            >
-              {done ? "✓ " : ""}
-              {STAGE_LABEL[s]}
-            </li>
-          );
-        })}
-      </ol>
+      {subject.stage === "presented" && <Outcome subject={subject} />}
 
-      <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,340px)]">
-        {/* Enter in any single-line field here submits, because it's a real form. */}
-        <form method="post" class="flex flex-col gap-4">
-          <input type="hidden" name="intent" value="details" />
-
-          <div class="ui-panel flex flex-col gap-4">
-            <div>
-              <label class="ui-label" for="title">Title</label>
-              <input
-                id="title"
-                name="title"
-                value={subject.title}
-                class="ui-input"
-              />
-            </div>
-
-            <div>
-              <label class="ui-label" for="description">Description</label>
-              <textarea
-                id="description"
-                name="description"
-                rows={6}
-                placeholder="What is it about, and why would the team care?"
-                class="ui-textarea"
-              >
-                {subject.description ?? ""}
-              </textarea>
-            </div>
-
-            <div>
-              <span class="ui-label">Links</span>
-              <LinkEditor
-                initial={subject.links.map((l) => ({
-                  url: l.url,
-                  label: l.label ?? "",
-                }))}
-              />
-            </div>
-          </div>
-
-          {showRecap && (
-            <div class="ui-panel flex flex-col gap-4">
-              <h3>after the session</h3>
-
-              <div>
-                <label class="ui-label" for="slidesUrl">Slides</label>
-                <input
-                  id="slidesUrl"
-                  name="slidesUrl"
-                  type="url"
-                  value={subject.slidesUrl ?? ""}
-                  placeholder="https://…"
-                  class="ui-input"
-                />
-              </div>
-
-              <div>
-                <label class="ui-label" for="recordingUrl">Recording</label>
-                <input
-                  id="recordingUrl"
-                  name="recordingUrl"
-                  type="url"
-                  value={subject.recordingUrl ?? ""}
-                  placeholder="https://…"
-                  class="ui-input"
-                />
-              </div>
-
-              <div>
-                <label class="ui-label" for="recapNotes">Notes</label>
-                <textarea
-                  id="recapNotes"
-                  name="recapNotes"
-                  rows={4}
-                  placeholder="What came up, follow-ups, who asked what."
-                  class="ui-textarea"
-                >
-                  {subject.recapNotes ?? ""}
-                </textarea>
-              </div>
-            </div>
-          )}
-
-          <div class="flex flex-wrap items-center gap-3">
-            <button type="submit" class="ui-btn ui-btn-primary">save</button>
-            {saved
-              ? <span class="ui-badge ui-badge-presented">saved</span>
-              : (
-                <span class="ui-hint">
-                  Enter in any single-line field also saves · Esc reverts
-                </span>
-              )}
-          </div>
-        </form>
+      <div class="detail-grid">
+        <div class="flex flex-col gap-5">
+          <DetailsForm subject={subject} saved={saved} />
+          <SpeakersForm subject={subject} />
+        </div>
 
         <aside class="flex flex-col gap-4">
-          {/* Its own form: Enter in the picker adds a chip, it never saves here. */}
-          <form method="post" class="ui-panel">
-            <input type="hidden" name="intent" value="people" />
-            <h3 class="mb-3">speakers</h3>
-            <PeoplePicker
-              initial={subject.people.map((p) => p.name)}
-              autoSubmit
-            />
-            {subject.people.length === 0 && (
-              <p class="ui-hint mt-2">
-                Adding the first speaker moves this to{" "}
-                <strong>has speaker</strong>.
-              </p>
-            )}
-            <noscript>
-              <button type="submit" class="ui-btn mt-2">save speakers</button>
-            </noscript>
-          </form>
-
-          <form method="post" class="ui-panel">
-            <input type="hidden" name="intent" value="session" />
-            <h3 class="mb-3">session</h3>
-            <AutoSubmitSelect
-              name="session"
-              value={subject.sessionId === null
-                ? ""
-                : String(subject.sessionId)}
-              ariaLabel="Session"
-              class="ui-select"
-              options={[
-                { value: "", label: "unscheduled" },
-                ...sessions.map((s) => ({
-                  value: String(s.id),
-                  label: formatShortDate(s.date),
-                })),
-              ]}
-            />
-            {sessions.length === 0 && (
-              <p class="ui-hint mt-2">
-                No sessions yet —{" "}
-                <a href="/sessions" class="underline">create one</a>.
-              </p>
-            )}
-          </form>
-
-          <form method="post" class="ui-panel">
-            <input type="hidden" name="intent" value="delete" />
-            <h3 class="mb-3">danger zone</h3>
-            <ConfirmButton
-              label="delete subject"
-              confirmLabel="yes, delete it"
-            />
-            <p class="ui-hint mt-2">Deleting is permanent.</p>
-          </form>
+          <NextStepCard subject={subject} sessions={sessions} />
+          <HistoryCard subject={subject} />
         </aside>
       </div>
     </>
   );
 });
+
+/** A presented subject leads with its recording and slides. */
+function Outcome({ subject }: { subject: Subject }) {
+  if (!subject.recordingUrl && !subject.slidesUrl) return null;
+  return (
+    <div class="mb-4 flex flex-wrap gap-2">
+      {subject.recordingUrl && (
+        <a
+          href={subject.recordingUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ui-btn ui-btn-primary"
+        >
+          ▶ Recording
+        </a>
+      )}
+      {subject.slidesUrl && (
+        <a
+          href={subject.slidesUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ui-btn"
+        >
+          Slides ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
+/** Title, description, links and recap. Enter in a single-line field saves, as it's a real form. */
+function DetailsForm({ subject, saved }: { subject: Subject; saved: boolean }) {
+  return (
+    <form method="post" class="flex flex-col gap-4">
+      <input type="hidden" name="intent" value="details" />
+
+      <div>
+        <h1 class="sr-only">{subject.title}</h1>
+        <input
+          id="title"
+          name="title"
+          value={subject.title}
+          required
+          aria-label="Title"
+          class="ui-input title-input"
+        />
+        <p class="ui-hint mt-1">⏎ save</p>
+      </div>
+
+      <div>
+        <label class="ui-label" for="description">Description</label>
+        <textarea
+          id="description"
+          name="description"
+          rows={5}
+          placeholder="What is it about, and why would the team care?"
+          class="ui-textarea description-input"
+        >
+          {subject.description ?? ""}
+        </textarea>
+      </div>
+
+      <section class="ui-card flex flex-col gap-2">
+        <h2 class="text-base">Links</h2>
+        <LinkEditor
+          initial={subject.links.map((l) => ({
+            url: l.url,
+            label: l.label ?? "",
+          }))}
+        />
+      </section>
+
+      {subject.stage === "presented" && <RecapFields subject={subject} />}
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="submit" class="ui-btn ui-btn-primary">Save</button>
+        {saved && <span class="text-xs font-bold text-ok-text">✓ saved</span>}
+      </div>
+    </form>
+  );
+}
+
+/** Its own form: Enter in the picker adds a speaker, it never saves the details. */
+function SpeakersForm({ subject }: { subject: Subject }) {
+  return (
+    <form method="post" class="ui-panel">
+      <input type="hidden" name="intent" value="people" />
+      <h2 class="mb-3 text-base">Speakers</h2>
+      <PeoplePicker initial={subject.people.map((p) => p.name)} autoSubmit />
+      <p class="ui-hint mt-2">
+        ↑↓ pick · ⏎ add · ⌫ on empty removes the last · esc close
+      </p>
+      <noscript>
+        <button type="submit" class="ui-btn mt-2">Save speakers</button>
+      </noscript>
+    </form>
+  );
+}
+
+/** Pills joined by arrows: ✓ for done, a shadow on the current stage, dashed for what's ahead. */
+function Stepper({ stage }: { stage: Stage }) {
+  const current = STAGE_ORDER.indexOf(stage);
+  return (
+    <ol class="stepper" aria-label="Stage">
+      {STAGE_ORDER.map((s, i) => (
+        <li key={s} class="contents">
+          {i > 0 && <span class="step-arrow" aria-hidden="true">→</span>}
+          <span
+            class={`step ${
+              i === current
+                ? `step-current step-${s}`
+                : i > current
+                ? "step-future"
+                : ""
+            }`}
+            aria-current={i === current ? "step" : undefined}
+          >
+            {i < current ? "✓ " : ""}
+            {STAGE_LABEL[s]}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function RecapFields({ subject }: { subject: Subject }) {
+  return (
+    <section class="ui-card flex flex-col gap-3">
+      <h2 class="text-base">After the session</h2>
+      <div>
+        <label class="ui-label" for="recordingUrl">Recording</label>
+        <input
+          id="recordingUrl"
+          name="recordingUrl"
+          type="url"
+          value={subject.recordingUrl ?? ""}
+          placeholder="https://…"
+          class="ui-input"
+        />
+      </div>
+      <div>
+        <label class="ui-label" for="slidesUrl">Slides</label>
+        <input
+          id="slidesUrl"
+          name="slidesUrl"
+          type="url"
+          value={subject.slidesUrl ?? ""}
+          placeholder="https://…"
+          class="ui-input"
+        />
+      </div>
+      <div>
+        <label class="ui-label" for="recapNotes">Notes</label>
+        <textarea
+          id="recapNotes"
+          name="recapNotes"
+          rows={3}
+          placeholder="What came up, follow-ups, who asked what."
+          class="ui-textarea"
+        >
+          {subject.recapNotes ?? ""}
+        </textarea>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The cyan card: what this subject needs next, and the session picker that
+ * moves it on. Upcoming dates come first and show their open slots.
+ */
+function NextStepCard({ subject, sessions }: {
+  subject: Subject;
+  sessions: Session[];
+}) {
+  return (
+    <form method="post" class="ui-panel next-card">
+      <input type="hidden" name="intent" value="session" />
+      <h2 class="text-base">{NEXT_STEP[subject.stage]}</h2>
+      {subject.stage === "idea" && (
+        <p class="mt-1 text-sm">
+          Add a speaker on the left. You can already pick a date.
+        </p>
+      )}
+      <label class="ui-label mt-3" for="session">Session</label>
+      <SessionSelect sessions={sessions} current={subject.sessionId} />
+      <button type="submit" class="ui-btn ui-btn-plan mt-3">
+        {subject.sessionId === null ? "Plan it" : "Move it"}
+      </button>
+      {sessions.length === 0 && (
+        <p class="mt-2 text-sm">
+          No sessions yet. <a href="/sessions" class="underline">Add a date</a>.
+        </p>
+      )}
+    </form>
+  );
+}
+
+/** Upcoming dates first, soonest on top, each with its open slots; then the past. */
+function SessionSelect({ sessions, current }: {
+  sessions: Session[];
+  current: number | null;
+}) {
+  const upcoming = sessions.filter((s) => !isPast(s.date))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const earlier = sessions.filter((s) => isPast(s.date));
+  const option = (s: Session, room: string) => (
+    <option key={s.id} value={s.id} selected={s.id === current}>
+      #{s.id} · {formatShortDate(s.date)}
+      {room}
+    </option>
+  );
+  const openSlots = (s: Session) =>
+    ` — ${Math.max(0, SESSION_SLOTS - s.subjects.length)} open`;
+
+  return (
+    <select id="session" name="session" class="ui-select">
+      <option value="">Unscheduled</option>
+      {upcoming.length > 0 && (
+        <optgroup label="Upcoming">
+          {upcoming.map((s) => option(s, openSlots(s)))}
+        </optgroup>
+      )}
+      {earlier.length > 0 && (
+        <optgroup label="Past">{earlier.map((s) => option(s, ""))}</optgroup>
+      )}
+    </select>
+  );
+}
+
+function HistoryCard({ subject }: { subject: Subject }) {
+  return (
+    <section class="ui-card flex flex-col gap-2">
+      <h2 class="text-base">History</h2>
+      <dl class="history">
+        <dt>Captured</dt>
+        <dd>{formatTimestamp(subject.createdAt)}</dd>
+        {subject.stageChangedAt && (
+          <>
+            <dt>Stage changed</dt>
+            <dd>{formatTimestamp(subject.stageChangedAt)}</dd>
+          </>
+        )}
+        <dt>Last edit</dt>
+        <dd>{formatTimestamp(subject.updatedAt)}</dd>
+      </dl>
+      <form method="post" class="card-foot">
+        <input type="hidden" name="intent" value="delete" />
+        <ConfirmButton
+          label="Delete subject…"
+          confirmLabel="Yes, delete it"
+        />
+      </form>
+    </section>
+  );
+}

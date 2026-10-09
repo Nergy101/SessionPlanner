@@ -43,6 +43,11 @@ export interface SubjectTable {
    * services/subjects.ts falls back to created_at. See 004_stage_changed_at.
    */
   stage_changed_at: string | null;
+  /**
+   * Running order within the session, 1-based; null while unscheduled.
+   * See 005_running_order_and_time.
+   */
+  position: number | null;
   created_at: Generated<string>;
   updated_at: Generated<string>;
 }
@@ -58,6 +63,8 @@ export interface SessionTable {
   id: Generated<number>;
   /** ISO yyyy-mm-dd. SQLite has no date type and this sorts lexicographically. */
   date: string;
+  /** "HH:MM" in Amsterdam time; null until decided. */
+  start_time: string | null;
   notes: string | null;
   created_at: Generated<string>;
 }

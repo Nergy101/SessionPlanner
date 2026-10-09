@@ -11,51 +11,26 @@ import {
 } from "@/services/subjects.ts";
 import {
   daysAway,
+  daysUntil,
   formatShortDate,
   getUpcomingSessions,
   type Session,
   SESSION_SLOTS,
 } from "@/services/sessions.ts";
-import { SubjectCard } from "@/components/SubjectCard.tsx";
-import QuickAdd from "@/islands/QuickAdd.tsx";
 import { normalizeName } from "@/services/people.ts";
-import AutoSubmitSelect from "@/islands/AutoSubmitSelect.tsx";
+import { BoardCard } from "@/components/BoardCard.tsx";
 import PeoplePicker from "@/islands/PeoplePicker.tsx";
+import QuickAdd from "@/islands/QuickAdd.tsx";
 
 /**
  * The four lanes of the board. Each lane is one derived stage: nothing is dragged,
  * a subject moves when its speakers or its session date change.
  */
-const LANES: readonly {
-  key: Stage;
-  label: string;
-  hint: string;
-  pill: string;
-}[] = [
-  {
-    key: "idea",
-    label: "idea",
-    hint: "needs a speaker",
-    pill: "ui-badge-idea",
-  },
-  {
-    key: "speaker",
-    label: "has speaker",
-    hint: "needs a session",
-    pill: "ui-badge-speaker",
-  },
-  {
-    key: "planned",
-    label: "planned",
-    hint: "on an upcoming date",
-    pill: "ui-badge-planned",
-  },
-  {
-    key: "presented",
-    label: "presented",
-    hint: "the archive",
-    pill: "ui-badge-presented",
-  },
+const LANES: readonly { key: Stage; label: string; hint: string }[] = [
+  { key: "idea", label: "idea", hint: "needs a speaker" },
+  { key: "speaker", label: "has speaker", hint: "needs a session" },
+  { key: "planned", label: "planned", hint: "on an upcoming date" },
+  { key: "presented", label: "presented", hint: "the archive" },
 ];
 
 const isLane = (value: string | null): value is Stage =>
@@ -63,8 +38,7 @@ const isLane = (value: string | null): value is Stage =>
 
 /**
  * Visitors without the password get this page read-only (see the gate in main.ts):
- * the same lanes, but no capture box, no forms, and no links into the private
- * subject and session pages they'd only bounce off.
+ * the same lanes, but no capture and no next-step controls.
  */
 export const handler = define.handlers({
   async GET(ctx) {
@@ -79,11 +53,7 @@ export const handler = define.handlers({
 
     return page({
       next: upcoming[0] ?? null,
-      // Every future date, not just the next one, is a valid slot to fill.
-      slots: upcoming.map((s) => ({
-        value: String(s.id),
-        label: formatShortDate(s.date),
-      })),
+      upcoming,
       lanes: { idea, speaker, planned, presented },
       activeLane: isLane(requested) ? requested : "idea",
       added: ctx.url.searchParams.get("added"),
@@ -158,7 +128,7 @@ function parseCapture(raw: string) {
 export default define.page<typeof handler>(function Dashboard({ data, state }) {
   const {
     next,
-    slots,
+    upcoming,
     lanes,
     activeLane,
     added,
@@ -166,50 +136,44 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
     speakerAdded,
   } = data;
   const signedIn = state.signedIn;
+  // The first future session with room left: where "plan →" goes.
+  const freeSession = upcoming.find((s) => s.subjects.length < SESSION_SLOTS);
 
   return (
     <>
-      <div class="mb-6">
-        <h1 class="text-3xl tracking-tight">dashboard</h1>
-        <p class="mt-1 max-w-2xl text-muted">
-          What's coming up, and where every topic stands.
-        </p>
-      </div>
+      <h1 class="sr-only">Dashboard</h1>
 
-      <div class="mb-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
+      <div class="top-row">
         {signedIn
           ? (
-            <div class="capture">
-              <QuickAdd
-                action="/"
-                autofocus
-                placeholder="Capture an idea… @name for a speaker, ⏎ to add"
-                label="Add"
-              />
-              {added && (
-                <p class="ui-hint mt-2">
-                  added <strong class="text-text">{added}</strong>{" "}
-                  — keep typing to add another.
-                </p>
-              )}
-            </div>
+            <QuickAdd
+              action="/"
+              autofocus
+              placeholder="Capture an idea… ⏎ to add"
+              label="Add"
+              class="capture"
+              inputClass="ui-input capture-input"
+            />
           )
           : (
             <div class="capture">
-              <p class="text-muted">
-                Read-only.{" "}
-                <a href="/login" class="font-semibold text-text">Sign in</a>
-                {" "}
-                to capture and plan.
-              </p>
+              <span class="capture-input text-muted">
+                Sign in to capture an idea…
+              </span>
+              <a href="/login" class="ui-btn ui-btn-primary">Sign in</a>
             </div>
           )}
-
         <NextSession session={next} />
       </div>
 
-      {(scheduled || speakerAdded) && (
-        <p class="ui-hint mb-4">
+      {(added || scheduled || speakerAdded) && (
+        <p class="ui-hint mt-3">
+          {added && (
+            <>
+              added <strong class="text-text">{added}</strong>{" "}
+              — keep typing to add another.{" "}
+            </>
+          )}
           {scheduled && (
             <>
               scheduled on <strong class="text-text">{scheduled}</strong>.{" "}
@@ -224,13 +188,13 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
         </p>
       )}
 
-      <nav class="mb-4 flex flex-wrap gap-2 md:hidden" aria-label="Lanes">
+      <nav class="lane-tabs mt-4" aria-label="Lanes">
         {LANES.map((lane) => (
           <a
             key={lane.key}
             href={`/?lane=${lane.key}`}
-            class={`lane-tab ${
-              lane.key === activeLane ? "lane-tab-active" : ""
+            class={`lane-tab lane-tab-${lane.key}${
+              lane.key === activeLane ? " lane-tab-active" : ""
             }`}
             aria-current={lane.key === activeLane ? "page" : undefined}
           >
@@ -239,28 +203,27 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
         ))}
       </nav>
 
-      <div class="board">
+      <div class="board mt-4">
         {LANES.map((lane) => {
           const items = lanes[lane.key];
-          const isActive = lane.key === activeLane;
           return (
             <section
               key={lane.key}
-              class={`lane ${isActive ? "" : "hidden"} md:flex`}
+              class={`lane${lane.key === activeLane ? "" : " lane-inactive"}`}
               aria-labelledby={`lane-${lane.key}`}
             >
               <div class="lane-head">
-                <div>
-                  <h2 id={`lane-${lane.key}`} class="sr-only">{lane.label}</h2>
-                  <span class={`ui-badge ${lane.pill}`}>{lane.label}</span>
-                  <p class="ui-hint mt-1">{lane.hint}</p>
-                </div>
+                <h2 id={`lane-${lane.key}`} class="sr-only">{lane.label}</h2>
+                <span class={`ui-badge ui-badge-${lane.key}`}>
+                  {lane.label}
+                </span>
                 <span class="lane-count">{items.length}</span>
               </div>
+              <p class="lane-hint">{lane.hint}</p>
 
               {items.length
                 ? items.map((subject) => (
-                  <SubjectCard
+                  <BoardCard
                     key={subject.id}
                     subject={subject}
                     linked={signedIn}
@@ -269,26 +232,16 @@ export default define.page<typeof handler>(function Dashboard({ data, state }) {
                       <LaneAction
                         lane={lane.key}
                         subject={subject}
-                        slots={slots}
+                        freeSession={freeSession}
                       />
                     )}
-                  </SubjectCard>
+                  </BoardCard>
                 ))
-                : (
-                  <div class="ui-empty">
-                    {emptyText(lane.key, signedIn)}
-                  </div>
-                )}
+                : <div class="ui-empty">{emptyText(lane.key, signedIn)}</div>}
             </section>
           );
         })}
       </div>
-
-      <p class="mt-6">
-        <a href="/sessions" class="ui-hint hover:text-text">
-          all sessions →
-        </a>
-      </p>
     </>
   );
 });
@@ -308,15 +261,13 @@ function emptyText(lane: Stage, signedIn: boolean): string {
   }
 }
 
-/** The next upcoming session with its slots: filled squares are taken. */
-function NextSession({ session }: {
-  session: Session | null;
-}) {
+/** The next upcoming session and how many of its slots are taken. */
+function NextSession({ session }: { session: Session | null }) {
   if (!session) {
     return (
       <div class="next-strip">
-        <p class="font-display text-lg font-bold">No upcoming session</p>
-        <a href="/sessions" class="ui-hint text-[#111] underline">
+        <p class="font-display text-base font-bold">No upcoming session</p>
+        <a href="/sessions" class="text-sm font-bold underline">
           add a date →
         </a>
       </div>
@@ -324,72 +275,119 @@ function NextSession({ session }: {
   }
 
   const filled = session.subjects.length;
-  const open = Math.max(SESSION_SLOTS - filled, 0);
 
   return (
-    <a href={`/sessions/${session.id}`} class="next-strip no-underline">
-      <p class="ui-eyebrow text-[#111]">
-        Next · {formatShortDate(session.date)}
-      </p>
-      <p class="mt-1 font-display text-lg font-bold">
+    <a href={`/sessions/${session.id}`} class="next-strip">
+      <span class="font-display text-base font-bold">
+        Next · #{session.id} {formatShortDate(session.date)}
+        {session.startTime && `, ${session.startTime}`}
+      </span>
+      <span class="text-sm">
         {filled} of {SESSION_SLOTS} slots · {daysAway(session.date)}
-      </p>
-      <div class="mt-2 flex gap-1.5" aria-hidden="true">
+      </span>
+      <span class="slot-row" aria-hidden="true">
         {Array.from({ length: SESSION_SLOTS }, (_, i) => (
           <span
             key={i}
             class={`slot ${i < filled ? "slot-filled" : "slot-open"}`}
           />
         ))}
-      </div>
-      <span class="sr-only">{open} open</span>
+      </span>
     </a>
   );
 }
 
-/** The one next-step form on a lane card. Each stage has exactly one. */
-function LaneAction({ lane, subject, slots }: {
+/**
+ * The one next-step control on a card; each lane has exactly one. Idea adds a
+ * speaker inline, has-speaker plans onto a session, planned links to its session,
+ * presented asks for a recording.
+ */
+function LaneAction({ lane, subject, freeSession }: {
   lane: Stage;
   subject: Subject;
-  slots: { value: string; label: string }[];
+  freeSession: Session | undefined;
 }) {
-  if (lane === "idea") {
-    return (
-      <form method="post" action="/">
-        <input type="hidden" name="intent" value="speaker" />
-        <input type="hidden" name="subject" value={subject.id} />
-        <PeoplePicker
-          initial={[]}
-          autoSubmit
-          placeholder="assign a speaker…"
-          inputClass="ui-input py-1 text-xs"
-        />
-      </form>
-    );
-  }
-
-  if (lane === "speaker") {
-    if (!slots.length) {
+  switch (lane) {
+    case "idea":
       return (
-        <a href="/sessions" class="ui-hint hover:text-text">
-          no upcoming sessions — add one →
+        <details class="board-speaker">
+          <summary class="ui-btn ui-btn-next board-next">+ speaker</summary>
+          <form method="post" action="/" class="mt-2">
+            <input type="hidden" name="intent" value="speaker" />
+            <input type="hidden" name="subject" value={subject.id} />
+            <PeoplePicker
+              initial={[]}
+              autoSubmit
+              placeholder="assign a speaker…"
+              inputClass="ui-input"
+            />
+          </form>
+        </details>
+      );
+
+    case "speaker":
+      // With no session free, the subject page is where a date gets picked.
+      if (!freeSession) {
+        return (
+          <a
+            href={`/subjects/${subject.id}`}
+            class="ui-btn ui-btn-next board-next"
+          >
+            plan →
+          </a>
+        );
+      }
+      return (
+        <form method="post" action="/" class="board-act">
+          <input type="hidden" name="intent" value="schedule" />
+          <input type="hidden" name="subject" value={subject.id} />
+          <input type="hidden" name="session" value={freeSession.id} />
+          <button
+            type="submit"
+            class="ui-btn ui-btn-next board-next"
+            title={`Plan on #${freeSession.id}, ${
+              formatShortDate(freeSession.date)
+            }`}
+          >
+            plan →
+          </button>
+        </form>
+      );
+
+    case "planned": {
+      if (subject.sessionId === null || subject.sessionDate === null) {
+        return null;
+      }
+      const days = daysUntil(subject.sessionDate);
+      return (
+        <a
+          href={`/sessions/${subject.sessionId}`}
+          class="ui-btn ui-btn-next board-next"
+        >
+          #{subject.sessionId} · {days === 0 ? "today" : `in ${days}d`}
         </a>
       );
     }
-    return (
-      <form method="post" action="/">
-        <input type="hidden" name="intent" value="schedule" />
-        <input type="hidden" name="subject" value={subject.id} />
-        <AutoSubmitSelect
-          name="session"
-          value=""
-          ariaLabel={`Schedule ${subject.title} on a session`}
-          class="ui-select py-1 text-xs"
-          options={[{ value: "", label: "schedule on…" }, ...slots]}
-        />
-      </form>
-    );
-  }
 
-  return null;
+    case "presented":
+      return subject.recordingUrl
+        ? (
+          <a
+            href={subject.recordingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ui-btn ui-btn-next board-next"
+          >
+            recording ✓
+          </a>
+        )
+        : (
+          <a
+            href={`/subjects/${subject.id}`}
+            class="ui-btn ui-btn-next board-next"
+          >
+            add recording
+          </a>
+        );
+  }
 }

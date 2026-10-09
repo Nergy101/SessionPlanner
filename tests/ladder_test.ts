@@ -24,6 +24,7 @@ if (error) throw error;
 
 const subjects = await import("@/services/subjects.ts");
 const sessions = await import("@/services/sessions.ts");
+type Stage = import("@/services/subjects.ts").Stage;
 
 async function reset() {
   await db.deleteFrom("subject_people").execute();
@@ -141,6 +142,26 @@ Deno.test("idle days falls back to created_at when the stage never changed", () 
     subjects.idleDays({ stageChangedAt: null, createdAt: fourDaysAgo }),
     4,
   );
+});
+
+Deno.test("an idea gets an idle sticker after 14 days, a has-speaker after 30", () => {
+  const daysAgo = (n: number) =>
+    new Date(Date.now() - n * 86_400_000 - 60_000)
+      .toISOString().replace("T", " ").slice(0, 19);
+  const at = (stage: Stage, days: number) =>
+    subjects.idleSticker({
+      stage,
+      stageChangedAt: daysAgo(days),
+      createdAt: daysAgo(days),
+    });
+
+  assertEquals(at("idea", 13), null);
+  assertEquals(at("idea", 14), 14);
+  assertEquals(at("speaker", 29), null);
+  assertEquals(at("speaker", 48), 48);
+  // Planned and presented subjects are never idle.
+  assertEquals(at("planned", 400), null);
+  assertEquals(at("presented", 400), null);
 });
 
 // Close the shared connection so the test process can exit.

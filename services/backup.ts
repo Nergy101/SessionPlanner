@@ -85,6 +85,15 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
+/** Columns added after a backup version was fixed may be missing; null is fine. */
+function optional(
+  row: Record<string, unknown>,
+  key: string,
+  check: (value: unknown) => boolean,
+): boolean {
+  return row[key] === undefined || row[key] === null || check(row[key]);
+}
+
 function hasKeys(
   value: unknown,
   keys: string[],
@@ -125,7 +134,8 @@ function validateRows(backup: unknown): asserts backup is Backup {
     if (
       !hasKeys(row, ["id", "date", "notes", "created_at"]) ||
       !isInteger(row.id) || typeof row.date !== "string" ||
-      !isNullableString(row.notes) || typeof row.created_at !== "string"
+      !isNullableString(row.notes) || typeof row.created_at !== "string" ||
+      !optional(row, "start_time", (v) => typeof v === "string")
     ) throw new Error("Invalid sessions row");
   }
   for (const row of tables.subjects as unknown[]) {
@@ -149,7 +159,9 @@ function validateRows(backup: unknown): asserts backup is Backup {
       !isNullableString(row.slides_url) ||
       !isNullableString(row.recording_url) ||
       !isNullableString(row.recap_notes) || !isInteger(row.bounty) ||
-      typeof row.created_at !== "string" || typeof row.updated_at !== "string"
+      typeof row.created_at !== "string" ||
+      typeof row.updated_at !== "string" ||
+      !optional(row, "position", isInteger)
     ) throw new Error("Invalid subjects row");
   }
   for (const row of tables.subject_links as unknown[]) {
@@ -218,4 +230,28 @@ export async function importData(value: unknown): Promise<void> {
       await trx.insertInto("notes").values(tables.notes).execute();
     }
   });
+}
+
+/** What a backup of this instance holds, for the export card's count tiles. */
+export async function countRecords(): Promise<
+  { subjects: number; sessions: number; people: number; notes: number }
+> {
+  const count = (table: "subjects" | "sessions" | "people" | "notes") =>
+    db.selectFrom(table)
+      .select((eb) => eb.fn.countAll<number>().as("n"))
+      .executeTakeFirstOrThrow()
+      .then((row) => Number(row.n));
+
+  const [subjects, sessions, people, notes] = await Promise.all([
+    count("subjects"),
+    count("sessions"),
+    count("people"),
+    count("notes"),
+  ]);
+  return { subjects, sessions, people, notes };
+}
+
+/** The download name, dated so successive backups never overwrite each other. */
+export function backupFilename(date = new Date()): string {
+  return `session-planner-${date.toISOString().slice(0, 10)}.json`;
 }

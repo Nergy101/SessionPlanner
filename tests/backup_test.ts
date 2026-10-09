@@ -91,3 +91,16 @@ Deno.test("invalid backups are rejected before changing data", async () => {
   );
   assertEquals((await exportData()).tables, before.tables);
 });
+
+Deno.test("backups from before the running order still import", async () => {
+  const backup = await exportData();
+  for (const row of backup.tables.sessions) {
+    delete (row as Partial<typeof row>).start_time;
+  }
+  for (const row of backup.tables.subjects) {
+    delete (row as Partial<typeof row>).position;
+  }
+  await importData(backup);
+  const sessions = (await exportData()).tables.sessions;
+  assertEquals(sessions.map((s) => s.start_time), sessions.map(() => null));
+});

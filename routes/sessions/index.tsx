@@ -2,24 +2,28 @@ import { page } from "fresh";
 import { define } from "@/utils.ts";
 import {
   createSession,
-  formatLongDate,
+  daysAway,
+  formatShortDate,
   isPast,
   listSessions,
   nextThursday,
+  parseTime,
   type Session,
   SESSION_SLOTS,
 } from "@/services/sessions.ts";
-import { StatusBadge } from "@/components/StatusBadge.tsx";
+import { Avatar } from "@/components/Avatar.tsx";
 import NewSession from "@/islands/NewSession.tsx";
 import {
   createSubject,
   findSubjectByTitle,
-  linkLabel,
   listSchedulable,
   setSubjectPeople,
   setSubjectSession,
 } from "@/services/subjects.ts";
 import { listPeople } from "@/services/people.ts";
+
+/** Sessions usually start late afternoon; prefilled, and clearable. */
+const DEFAULT_START = "16:00";
 
 export const handler = define.handlers({
   async GET() {
@@ -39,6 +43,7 @@ export const handler = define.handlers({
       ),
       past: all.filter((s) => isPast(s.date)),
       defaultDate: nextThursday(),
+      defaultTime: DEFAULT_START,
     });
   },
 
@@ -53,7 +58,11 @@ export const handler = define.handlers({
       return ctx.redirect("/sessions", 303);
     }
 
-    const id = await createSession(date, String(form.get("notes") ?? ""));
+    const id = await createSession(
+      date,
+      String(form.get("notes") ?? ""),
+      parseTime(form.get("time")),
+    );
 
     const title = String(form.get("subjectTitle") ?? "").trim();
     if (title) {
@@ -75,124 +84,30 @@ export const handler = define.handlers({
 });
 
 export default define.page<typeof handler>(function Sessions({ data }) {
-  const { upcoming, past, defaultDate, pool, people } = data;
-
-  const Row = (
-    { session, past: isOld }: { session: Session; past: boolean },
-  ) => {
-    const open = Math.max(0, SESSION_SLOTS - session.subjects.length);
-    return (
-      <article
-        class={`ui-card ${isOld ? "opacity-75" : ""}`}
-      >
-        <div class="flex gap-3">
-          {/* The date block: yellow when it is the next thing on the calendar, plain otherwise. */}
-          <a
-            href={`/sessions/${session.id}`}
-            class={`flex w-[58px] shrink-0 flex-col items-center justify-center border border-line py-1.5 no-underline ${
-              isOld ? "bg-surface-2 text-text" : "bg-primary text-[#111]"
-            }`}
-            aria-label={`Open ${formatLongDate(session.date)}`}
-          >
-            <span class="text-2xl font-bold leading-none">
-              {Number(session.date.slice(8, 10))}
-            </span>
-            <span class="text-[0.62rem] uppercase tracking-widest">
-              {new Date(`${session.date}T00:00:00`).toLocaleDateString(
-                "en-GB",
-                {
-                  month: "short",
-                  year: "numeric",
-                },
-              )}
-            </span>
-          </a>
-
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <a
-                href={`/sessions/${session.id}`}
-                class="font-bold text-text no-underline hover:underline"
-              >
-                {formatLongDate(session.date)}
-              </a>
-              <span class="ui-hint">
-                {session.subjects.length}/{SESSION_SLOTS} slots
-              </span>
-            </div>
-
-            {session.notes && (
-              <p class="ui-hint mt-1 truncate">{session.notes}</p>
-            )}
-
-            <ul class="mt-2 flex flex-col gap-1.5">
-              {session.subjects.map((s) => (
-                <li key={s.id} class="flex min-w-0 items-center gap-2">
-                  <StatusBadge stage={s.stage} />
-                  <a
-                    href={`/subjects/${s.id}`}
-                    class="min-w-0 truncate text-text no-underline hover:underline"
-                  >
-                    {s.title}
-                  </a>
-                </li>
-              ))}
-              {Array.from({ length: open }, (_, i) => (
-                <li key={`open-${i}`}>
-                  <a
-                    href={`/sessions/${session.id}`}
-                    class="ui-hint block border border-dashed border-line px-2 py-1 no-underline hover:text-text"
-                  >
-                    + open slot
-                  </a>
-                </li>
-              ))}
-            </ul>
-
-            {session.links.length > 0 && (
-              <div class="mt-2 flex flex-wrap gap-1.5">
-                {session.links.map((l) => (
-                  <a
-                    key={l.id}
-                    href={l.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="ui-chip"
-                  >
-                    {linkLabel(l)} ↗
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </article>
-    );
-  };
+  const { upcoming, past, defaultDate, defaultTime, pool, people } = data;
 
   return (
     <>
-      <div class="mb-6">
-        <h1 class="text-3xl tracking-tight">sessions</h1>
-        <p class="mt-1 max-w-2xl text-muted">
-          The dates, and what's planned for each one.
+      <header class="page-head">
+        <h1>Sessions</h1>
+        <p class="page-sub">
+          {upcoming.length} upcoming · {past.length} past
         </p>
-      </div>
+      </header>
 
       <NewSession
         defaultDate={defaultDate}
+        defaultTime={defaultTime}
         pool={pool}
         people={people}
       />
 
-      <section class="mb-9">
-        <div class="ui-section-head">
-          <h2>upcoming</h2>
-        </div>
+      <section class="mt-6">
+        <h2 class="ui-eyebrow mb-3">Upcoming</h2>
         {upcoming.length
           ? (
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {upcoming.map((s) => <Row key={s.id} session={s} past={false} />)}
+            <div class="card-grid">
+              {upcoming.map((s) => <UpcomingCard key={s.id} session={s} />)}
             </div>
           )
           : (
@@ -202,15 +117,12 @@ export default define.page<typeof handler>(function Sessions({ data }) {
           )}
       </section>
 
-      <section>
-        <div class="ui-section-head">
-          <h2>past</h2>
-          <span class="ui-hint">what the team has already shared</span>
-        </div>
+      <section class="mt-8">
+        <h2 class="ui-eyebrow mb-3">Past</h2>
         {past.length
           ? (
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {past.map((s) => <Row key={s.id} session={s} past />)}
+            <div class="ui-card overflow-hidden p-0">
+              {past.map((s) => <PastRow key={s.id} session={s} />)}
             </div>
           )
           : <div class="ui-empty">Nothing yet.</div>}
@@ -218,3 +130,95 @@ export default define.page<typeof handler>(function Sessions({ data }) {
     </>
   );
 });
+
+/** "15" and "Oct" for the yellow date block. */
+function dayAndMonth(iso: string) {
+  const date = new Date(`${iso}T00:00:00`);
+  return {
+    day: date.getDate(),
+    month: date.toLocaleDateString("en-GB", { month: "short" }),
+    weekday: date.toLocaleDateString("en-GB", { weekday: "short" }),
+  };
+}
+
+function UpcomingCard({ session }: { session: Session }) {
+  const { day, month, weekday } = dayAndMonth(session.date);
+  const open = Math.max(0, SESSION_SLOTS - session.subjects.length);
+
+  return (
+    <article class="ui-card flex flex-col gap-3">
+      <a href={`/sessions/${session.id}`} class="session-head">
+        <span class="date-block">
+          <span class="text-2xl font-bold">{day}</span>
+          <span class="text-[11px] font-bold uppercase">{month}</span>
+        </span>
+        <span class="min-w-0">
+          <span class="block font-display text-lg font-bold">
+            #{session.id}
+          </span>
+          <span class="ui-hint">
+            {[weekday, session.startTime, daysAway(session.date)]
+              .filter(Boolean).join(" · ")}
+          </span>
+        </span>
+      </a>
+
+      {session.notes && <p class="ui-hint truncate">{session.notes}</p>}
+
+      <ul class="flex flex-col gap-2">
+        {session.subjects.map((s) => (
+          <li key={s.id}>
+            <a href={`/subjects/${s.id}`} class="slot-subject">
+              <span class="min-w-0 flex-1 truncate font-display font-bold">
+                {s.title}
+              </span>
+              {s.people.slice(0, 2).map((p) => (
+                <Avatar key={p.id} name={p.name} stage={s.stage} />
+              ))}
+              {s.people.length === 0 && (
+                <span class="ui-badge ui-badge-danger">no speaker</span>
+              )}
+            </a>
+          </li>
+        ))}
+        {Array.from({ length: open }, (_, i) => (
+          <li key={`open-${i}`}>
+            <a href={`/sessions/${session.id}`} class="slot-open-row">
+              + open slot
+            </a>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+/** Past sessions: number, date, what was presented, and whether recordings are in. */
+function PastRow({ session }: { session: Session }) {
+  const total = session.subjects.length;
+  const recorded = session.subjects.filter((s) => s.recordingUrl).length;
+  const complete = total > 0 && recorded === total;
+
+  return (
+    <a href={`/sessions/${session.id}`} class="ui-row ui-row-past">
+      <span class="font-display text-base font-bold">#{session.id}</span>
+      <span>{formatShortDate(session.date)}</span>
+      <span class="min-w-0 truncate">
+        {total
+          ? session.subjects.map((s) => s.title).join(" · ")
+          : <span class="text-muted">nothing presented</span>}
+      </span>
+      <span>
+        {total > 0 && (
+          <span
+            class={`ui-badge ${
+              complete ? "ui-badge-planned" : "ui-badge-danger"
+            }`}
+          >
+            {recorded}/{total} recordings {complete ? "✓" : "!"}
+          </span>
+        )}
+      </span>
+    </a>
+  );
+}

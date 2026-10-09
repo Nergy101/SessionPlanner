@@ -20,6 +20,7 @@ interface PoolSubject {
  */
 export function NewSession(props: {
   defaultDate: string;
+  defaultTime: string;
   pool: PoolSubject[];
   people: string[];
 }) {
@@ -32,8 +33,8 @@ export function NewSession(props: {
   const alreadyStaffed = chosen !== undefined && chosen.speakers.length > 0;
 
   return (
-    <form method="post" class="ui-panel mb-9">
-      <h3 class="mb-3">new session</h3>
+    <form method="post" class="ui-panel">
+      <h2 class="ui-eyebrow mb-3">New session</h2>
 
       <div class="flex flex-wrap items-end gap-3">
         <div>
@@ -44,6 +45,19 @@ export function NewSession(props: {
             type="date"
             required
             value={props.defaultDate}
+            class="ui-input w-auto"
+          />
+        </div>
+
+        <div>
+          <label class="ui-label" for="time">
+            Time <span class="ui-label-hint">(optional)</span>
+          </label>
+          <input
+            id="time"
+            name="time"
+            type="time"
+            value={props.defaultTime}
             class="ui-input w-auto"
           />
         </div>
@@ -68,7 +82,7 @@ export function NewSession(props: {
           />
         </div>
 
-        <button type="submit" class="ui-btn ui-btn-primary">add session</button>
+        <button type="submit" class="ui-btn ui-btn-primary">+ Session</button>
       </div>
 
       <div class="mt-3 flex flex-wrap items-end gap-3">

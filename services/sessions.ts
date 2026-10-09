@@ -1,6 +1,8 @@
 import { sql } from "@kysely/kysely";
 import { db } from "@/db/db.ts";
+import type { SessionRow } from "@/db/schema.ts";
 import {
+  byPosition,
   computeStage,
   listSubjects,
   type Stage,
@@ -11,7 +13,10 @@ export interface Session {
   id: number;
   /** ISO yyyy-mm-dd. */
   date: string;
+  /** "HH:MM" in Amsterdam time, or null when not decided yet. */
+  startTime: string | null;
   notes: string | null;
+  /** In running order. */
   subjects: Subject[];
   /** The first few links across this session's subjects, for the card preview. */
   links: Subject["links"];
@@ -34,9 +39,17 @@ export function isPast(date: string): boolean {
   return date < today();
 }
 
+/** A form's "HH:MM", or null for blank or anything that isn't a time. */
+export function parseTime(value: unknown): string | null {
+  const time = String(value ?? "").trim();
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : null;
+}
+
+const SESSION_COLUMNS = ["id", "date", "start_time", "notes"] as const;
+
 /** One query for the sessions, one for their subjects. */
 async function hydrate(
-  rows: Array<{ id: number; date: string; notes: string | null }>,
+  rows: Pick<SessionRow, typeof SESSION_COLUMNS[number]>[],
 ): Promise<Session[]> {
   if (!rows.length) return [];
 
@@ -51,10 +64,11 @@ async function hydrate(
   }
 
   return rows.map((r) => {
-    const subjects = bySession.get(r.id) ?? [];
+    const subjects = (bySession.get(r.id) ?? []).sort(byPosition);
     return {
       id: r.id,
       date: r.date,
+      startTime: r.start_time,
       notes: r.notes,
       subjects,
       links: subjects.flatMap((s) => s.links).slice(0, PREVIEW_LINKS),
@@ -65,7 +79,7 @@ async function hydrate(
 export async function listSessions(): Promise<Session[]> {
   const rows = await db
     .selectFrom("sessions")
-    .select(["id", "date", "notes"])
+    .select(SESSION_COLUMNS)
     .orderBy("date", "desc")
     .execute();
   return hydrate(rows);
@@ -74,7 +88,7 @@ export async function listSessions(): Promise<Session[]> {
 export async function getSession(id: number): Promise<Session | undefined> {
   const row = await db
     .selectFrom("sessions")
-    .select(["id", "date", "notes"])
+    .select(SESSION_COLUMNS)
     .where("id", "=", id)
     .executeTakeFirst();
   if (!row) return undefined;
@@ -85,7 +99,7 @@ export async function getSession(id: number): Promise<Session | undefined> {
 export async function getUpcomingSessions(limit?: number): Promise<Session[]> {
   let query = db
     .selectFrom("sessions")
-    .select(["id", "date", "notes"])
+    .select(SESSION_COLUMNS)
     .where("date", ">=", today())
     .orderBy("date");
   if (limit !== undefined) query = query.limit(limit);
@@ -101,23 +115,40 @@ export async function getNextSession(): Promise<Session | undefined> {
 export async function createSession(
   date: string,
   notes?: string | null,
+  startTime: string | null = null,
 ): Promise<number> {
   const row = await db
     .insertInto("sessions")
-    .values({ date, notes: notes?.trim() || null })
+    .values({ date, start_time: startTime, notes: notes?.trim() || null })
     .returning("id")
     .executeTakeFirstOrThrow();
   return row.id;
 }
 
-export async function updateSession(
+/** When a session happens; a null start time means "not decided yet". */
+export interface SessionTime {
+  date: string;
+  startTime: string | null;
+}
+
+export async function rescheduleSession(
   id: number,
-  date: string,
-  notes?: string | null,
+  { date, startTime }: SessionTime,
 ): Promise<void> {
   await db
     .updateTable("sessions")
-    .set({ date, notes: notes?.trim() || null })
+    .set({ date, start_time: startTime })
+    .where("id", "=", id)
+    .execute();
+}
+
+export async function setSessionNotes(
+  id: number,
+  notes: string | null,
+): Promise<void> {
+  await db
+    .updateTable("sessions")
+    .set({ notes: notes?.trim() || null })
     .where("id", "=", id)
     .execute();
 }
@@ -178,17 +209,32 @@ export function formatShortDate(iso: string): string {
     weekday: "short",
     day: "numeric",
     month: "short",
-    year: "numeric",
   });
 }
 
-export function daysAway(iso: string): string {
+/** Whole days from today to `iso`: negative once that day has passed. */
+export function daysUntil(iso: string): number {
   const ms = new Date(`${iso}T00:00:00`).getTime() -
     new Date(`${today()}T00:00:00`).getTime();
-  const days = Math.round(ms / 86_400_000);
+  return Math.round(ms / 86_400_000);
+}
+
+export function daysAway(iso: string): string {
+  const days = daysUntil(iso);
   if (days === 0) return "today";
   if (days === 1) return "tomorrow";
   if (days < 7) return `in ${days} days`;
   const weeks = Math.floor(days / 7);
   return `in ${weeks} week${weeks === 1 ? "" : "s"}`;
+}
+
+/** SQLite's UTC `YYYY-MM-DD HH:MM:SS` as "8 Oct, 14:05" in Amsterdam time. */
+export function formatTimestamp(utc: string): string {
+  return new Date(`${utc.replace(" ", "T")}Z`).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Amsterdam",
+  });
 }

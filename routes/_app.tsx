@@ -16,28 +16,55 @@ const NAV = [
 export default function App(
   { Component, url, state }: PageProps<unknown, State>,
 ) {
-  // The public dashboard has no app chrome; all other views belong to the organiser.
+  // Only the dashboard is public. Other sections stay visible as locked links to /login.
   const signedIn = state?.signedIn === true;
+
+  // The login page carries its own layout and gets no app chrome.
+  const bare = url.pathname === "/login";
 
   const active = (href: string) =>
     href === "/" ? url.pathname === "/" : url.pathname.startsWith(href);
 
-  // The login page gets no chrome.
-  const bare = url.pathname === "/login";
+  const current = NAV.find((item) => active(item.href));
 
   const navLinks = (vertical: boolean) =>
-    NAV.map((item) => (
-      <a
-        key={item.href}
-        href={item.href}
-        aria-current={active(item.href) ? "page" : undefined}
-        class={`nav-link${vertical ? " nav-link-vertical" : ""}${
-          active(item.href) ? " nav-link-active" : ""
-        }`}
-      >
-        {item.label}
-      </a>
-    ));
+    NAV.map((item) => {
+      const isActive = active(item.href);
+      const locked = !signedIn && item.href !== "/";
+      const classes = [
+        "nav-link",
+        vertical && "nav-link-vertical",
+        isActive && "nav-link-active",
+        locked && "nav-link-locked",
+      ].filter(Boolean).join(" ");
+      return (
+        <a
+          key={item.href}
+          href={locked
+            ? `/login?returnTo=${encodeURIComponent(item.href)}`
+            : item.href}
+          aria-current={isActive ? "page" : undefined}
+          class={classes}
+        >
+          {item.label}
+        </a>
+      );
+    });
+
+  const logo = (size: number) => (
+    <span class="sp-mark" style={`--s:${size}px`} aria-hidden="true">
+      <span class="sp-sq"></span>
+      <span class="sp-ci"></span>
+    </span>
+  );
+
+  const signOut = signedIn && (
+    <form method="post" action="/logout">
+      <button type="submit" class="ui-btn ui-btn-ghost" title="Sign out">
+        Sign out
+      </button>
+    </form>
+  );
 
   return (
     <html lang="en" data-theme="light">
@@ -79,103 +106,69 @@ export default function App(
         />
         <script src={asset("/straat.js")} defer />
         <script src={asset("/busy.js")} defer />
+        <script src={asset("/require-input.js")} defer />
       </head>
       <body>
         {bare ? <Component /> : (
-          <div class="flex min-h-full flex-col">
+          <div class="app-shell">
             <a href="#main" class="skip-link">
               Skip to content
             </a>
 
-            {signedIn && (
-              <header class="app-header sticky top-0 z-30 flex items-center gap-3 border-b-2 border-(--color-line) bg-(--color-surface)">
-                <a
-                  href="/"
-                  class="sp-logo"
-                  aria-label="session planner – dashboard"
-                >
-                  <span class="sp-mark" style="--s:28px" aria-hidden="true">
-                    <span class="sp-sq"></span>
-                    <span class="sp-ci"></span>
-                  </span>
-                  <span class="sp-word">session planner</span>
-                </a>
+            <aside class="sidebar" aria-label="Sections">
+              <a
+                href="/"
+                class="sp-logo sidebar-brand"
+                aria-label="session planner – dashboard"
+              >
+                {logo(26)}
+                <span class="sp-word">session planner</span>
+              </a>
 
-                <nav
-                  class="hidden min-w-0 flex-1 items-center gap-1 lg:flex"
-                  aria-label="Sections"
-                >
-                  {navLinks(false)}
-                </nav>
+              <nav class="flex flex-col gap-1.5" aria-label="Sections">
+                {navLinks(false)}
+              </nav>
 
-                <details class="relative ml-auto shrink-0 lg:hidden">
-                  <summary
-                    class="ui-icon-btn cursor-pointer list-none"
-                    aria-label="Open section navigation"
-                    title="Open navigation"
-                  >
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="4" y1="6" x2="20" y2="6" />
-                      <line x1="4" y1="12" x2="20" y2="12" />
-                      <line x1="4" y1="18" x2="20" y2="18" />
-                    </svg>
-                  </summary>
-                  <nav
-                    class="absolute right-0 top-full z-40 mt-2 flex min-w-48 flex-col gap-1 rounded-(--radius-lg) border-2 border-(--color-line) bg-(--color-surface) p-2 shadow-(--shadow-lg)"
-                    aria-label="Sections"
-                  >
+              <div class="sidebar-foot">
+                <ThemeToggle />
+                <StraatToggle />
+                {signOut}
+              </div>
+            </aside>
+
+            <header class="m-bar">
+              <a
+                href="/"
+                class="sp-logo"
+                aria-label="session planner – dashboard"
+              >
+                {logo(28)}
+              </a>
+              <span class="m-title">{current?.label ?? "session planner"}</span>
+              <details class="m-menu">
+                <summary aria-label="Open navigation" title="Open navigation">
+                  ☰
+                </summary>
+                <div class="m-menu-panel">
+                  <nav class="flex flex-col gap-2" aria-label="Sections">
                     {navLinks(true)}
                   </nav>
-                </details>
-
-                <div class="flex shrink-0 items-center gap-1">
-                  <span class="hidden lg:inline-flex">
-                    <StraatToggle />
-                  </span>
-                  <ThemeToggle />
-                  <form method="post" action="/logout">
-                    <button
-                      type="submit"
-                      class="ui-icon-btn"
-                      title="Sign out"
-                      aria-label="Sign out"
-                    >
-                      <svg
-                        width="17"
-                        height="17"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16 17 21 12 16 7" />
-                        <line x1="21" y1="12" x2="9" y2="12" />
-                      </svg>
-                    </button>
-                  </form>
+                  <div class="m-settings">
+                    <div class="m-settings-row">
+                      <span class="ui-eyebrow">Straat-taal</span>
+                      <StraatToggle />
+                    </div>
+                    <div class="m-settings-row">
+                      <span class="ui-eyebrow">Theme</span>
+                      <ThemeToggle />
+                    </div>
+                    {signOut}
+                  </div>
                 </div>
-              </header>
-            )}
+              </details>
+            </header>
 
-            <main
-              id="main"
-              class={`app-main mx-auto w-full max-w-6xl flex-1 ${
-                signedIn ? "" : "app-main-public"
-              }`}
-            >
+            <main id="main" class="app-main mx-auto w-full max-w-6xl">
               <Component />
             </main>
           </div>

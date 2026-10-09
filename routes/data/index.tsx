@@ -1,11 +1,16 @@
 import { page } from "fresh";
 import { define } from "@/utils.ts";
-import { importData } from "@/services/backup.ts";
-import ConfirmButton from "@/islands/ConfirmButton.tsx";
+import { backupFilename, countRecords, importData } from "@/services/backup.ts";
+import ImportFile from "@/islands/ImportFile.tsx";
+
+/** What has to be typed before an import may replace everything. */
+const CONFIRM_WORD = "replace";
 
 export const handler = define.handlers({
-  GET(ctx) {
+  async GET(ctx) {
     return page({
+      counts: await countRecords(),
+      filename: backupFilename(),
       imported: ctx.url.searchParams.get("imported") === "1",
       error: ctx.url.searchParams.get("error"),
     });
@@ -13,6 +18,15 @@ export const handler = define.handlers({
 
   async POST(ctx) {
     const form = await ctx.req.formData();
+    if (String(form.get("confirm") ?? "").trim() !== CONFIRM_WORD) {
+      return ctx.redirect(
+        `/data?error=${
+          encodeURIComponent(`Type “${CONFIRM_WORD}” to confirm the import`)
+        }`,
+        303,
+      );
+    }
+
     const upload = form.get("backup");
     if (!(upload instanceof File) || upload.size === 0) {
       return ctx.redirect("/data?error=Choose+a+backup+file+first", 303);
@@ -32,89 +46,104 @@ export const handler = define.handlers({
 });
 
 export default define.page<typeof handler>(function Data({ data }) {
+  const { counts, filename, imported, error } = data;
+
   return (
     <>
-      <div class="mb-6">
-        <h1 class="text-3xl tracking-tight">data</h1>
-        <p class="mt-1 max-w-2xl text-muted">
-          Download a complete backup or restore one from another SessionPlanner
-          instance.
+      <header class="page-head">
+        <h1>Data</h1>
+        <p class="page-sub">
+          Download a complete backup, or restore one from another instance.
         </p>
-      </div>
+      </header>
 
-      {data.imported && (
-        <p
-          role="status"
-          class="mb-6 border-2 border-dashed border-ok-text bg-surface-2 px-3 py-2 font-bold text-ok-text"
-        >
-          Backup imported successfully.
+      {imported && (
+        <p role="status" class="ui-alert ui-alert-ok mb-5">
+          Backup imported.
         </p>
       )}
-      {data.error && (
-        <p
-          role="alert"
-          class="mb-6 border-2 border-dashed border-careful bg-surface-2 px-3 py-2 font-bold text-danger-text"
-        >
-          {data.error}
-        </p>
-      )}
+      {error && <p role="alert" class="ui-alert mb-5">{error}</p>}
 
-      <div class="grid gap-6 md:grid-cols-2">
-        <section class="ui-card">
-          <h2>export</h2>
-          <p class="mt-2 text-sm text-muted">
-            Save subjects, sessions, people, links and all planning history as
-            one JSON backup.
-          </p>
-          <a
-            href="/data/export"
-            class="ui-btn ui-btn-primary mt-5 no-underline"
-            download="sessionplanner-backup.json"
-          >
-            download backup
-          </a>
-        </section>
-
-        <section class="ui-card border-careful">
-          <h2>import</h2>
-          <p class="mt-2 text-sm text-muted">
-            <strong class="text-danger-text">Replaces everything.</strong>{" "}
-            Importing overwrites all current data. Export this instance first if
-            you may need to undo the restore.
-          </p>
-          <form
-            method="post"
-            action="/data"
-            enctype="multipart/form-data"
-            class="mt-5 flex flex-col gap-4"
-            data-busy
-          >
-            <label class="block">
-              <span class="ui-label">backup JSON</span>
-              <input
-                type="file"
-                name="backup"
-                accept="application/json,.json"
-                required
-                class="mt-1 block w-full text-sm text-muted file:mr-3 file:border-2 file:border-line file:bg-surface file:px-3 file:py-2 file:font-bold file:text-text"
-              />
-            </label>
-            <div>
-              <ConfirmButton
-                label="replace data"
-                confirmLabel="yes, replace everything"
-              />
-            </div>
-            <span class="sp-busy" role="status">
-              <span class="sp-mark" style="--s:18px" aria-hidden="true">
-                <span class="sp-sq"></span>
-                <span class="sp-ci"></span>
-              </span>
-              Importing backup…
-            </span>
-          </form>
-        </section>
+      <div class="grid items-start gap-5 md:grid-cols-2">
+        <ExportCard counts={counts} filename={filename} />
+        <ImportCard counts={counts} />
       </div>
     </>
   );
 });
+
+type Counts = Awaited<ReturnType<typeof countRecords>>;
+
+function ExportCard({ counts, filename }: {
+  counts: Counts;
+  filename: string;
+}) {
+  return (
+    <section class="ui-panel flex flex-col gap-4">
+      <h2 class="text-xl">Export</h2>
+      <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {Object.entries(counts).map(([label, value]) => (
+          <div key={label} class="count-tile">
+            <span class="count-tile-value">{value}</span>
+            <span class="ui-hint">{label}</span>
+          </div>
+        ))}
+      </div>
+      <p class="ui-hint">
+        <span class="font-mono">{filename}</span> · includes notes
+      </p>
+      <a
+        href="/data/export"
+        class="ui-btn ui-btn-primary self-start"
+        download={filename}
+      >
+        Download JSON
+      </a>
+    </section>
+  );
+}
+
+/** Replace-everything import: the button stays off until the confirm word is typed. */
+function ImportCard({ counts }: { counts: Counts }) {
+  return (
+    <section class="ui-panel ui-panel-careful">
+      <span class="sticker sticker-corner">REPLACES EVERYTHING</span>
+      <h2 class="text-xl">Import</h2>
+      <p class="mt-2 text-muted">
+        Importing deletes every subject, session, person and note here and puts
+        the file's in their place. Export first if you might want to undo it.
+      </p>
+      <form
+        method="post"
+        action="/data"
+        enctype="multipart/form-data"
+        class="mt-4 flex flex-col gap-3"
+        data-busy
+        data-require="confirm"
+        data-require-value={CONFIRM_WORD}
+      >
+        <ImportFile current={counts} />
+        <label class="ui-label mt-1" for="confirm">
+          Type <strong>{CONFIRM_WORD}</strong> to confirm
+        </label>
+        <input
+          id="confirm"
+          name="confirm"
+          autocomplete="off"
+          spellcheck={false}
+          class="ui-input"
+        />
+        <button type="submit" class="ui-btn ui-btn-danger-solid self-start">
+          Replace all data
+        </button>
+        <span class="sp-busy" role="status">
+          <span class="sp-mark" style="--s:18px" aria-hidden="true">
+            <span class="sp-sq"></span>
+            <span class="sp-ci"></span>
+          </span>
+          Importing backup…
+        </span>
+      </form>
+    </section>
+  );
+}

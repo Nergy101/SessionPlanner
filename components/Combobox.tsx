@@ -6,6 +6,8 @@ export interface ComboOption {
   value: string;
   /** Secondary text shown on the right of the row, e.g. who's already on a topic. */
   hint?: string;
+  /** Replaces the hint's muted style, e.g. with a stage badge. */
+  hintClass?: string;
 }
 
 /**
@@ -145,7 +147,10 @@ export function Combobox(props: {
                   <>
                     <span class="truncate">{row.value}</span>
                     {row.hint && (
-                      <span class="shrink-0 text-[0.7rem] opacity-60">
+                      <span
+                        class={row.hintClass ??
+                          "shrink-0 text-[0.7rem] opacity-60"}
+                      >
                         {row.hint}
                       </span>
                     )}

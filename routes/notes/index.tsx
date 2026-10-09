@@ -7,6 +7,8 @@ import {
   updateNote,
 } from "@/services/notes.ts";
 import ConfirmButton from "@/islands/ConfirmButton.tsx";
+import NoteEditor from "@/islands/NoteEditor.tsx";
+import { formatTimestamp } from "@/services/sessions.ts";
 
 export const handler = define.handlers({
   async GET() {
@@ -43,77 +45,61 @@ export default define.page<typeof handler>(function Notes({ data }) {
 
   return (
     <>
-      <div class="mb-6">
-        <h1 class="text-3xl tracking-tight">notes</h1>
-        <p class="mt-1 max-w-2xl text-muted">
-          Private scratch space, free-form. Nothing here feeds the planner or
-          the dashboard. A blank note isn't saved, and clearing a note doesn't
-          remove it; use delete for that.
+      <header class="page-head">
+        <h1>Notes</h1>
+        <p class="page-sub">
+          Private scratch space. Notes never link to subjects or sessions.
         </p>
-      </div>
+      </header>
 
       <form
         method="post"
-        class="mb-6 flex flex-col gap-3 border-2 border-line bg-primary p-4 shadow-[var(--shadow-md)]"
+        class="ui-panel ui-panel-primary note-new"
       >
         <input type="hidden" name="intent" value="create" />
-        <label class="ui-label text-[#111]" for="new-note">new note</label>
-        <textarea
+        <NoteEditor
           id="new-note"
-          name="body"
-          rows={4}
-          placeholder="write whatever comes to mind…"
-          class="ui-textarea"
+          initial=""
+          rows={3}
+          autofocus
+          placeholder="Write whatever comes to mind…"
+          saveLabel="Save note"
+          saveClass="ui-btn-next"
+          meta="ctrl+⏎ to save"
         />
-        <div>
-          <button type="submit" class="ui-btn bg-surface text-text">
-            save note
-          </button>
-        </div>
       </form>
 
       {notes.length === 0
-        ? <div class="ui-empty">No notes yet. Start typing above.</div>
+        ? <div class="ui-empty mt-5">No notes yet. Start typing above.</div>
         : (
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div class="card-grid mt-5">
             {notes.map((note) => (
-              <section key={note.id} class="ui-card">
-                <form method="post" class="flex flex-col gap-3">
+              <article key={note.id} class="ui-card note-card">
+                <form method="post" class="flex flex-col gap-2">
                   <input type="hidden" name="intent" value="update" />
                   <input type="hidden" name="id" value={note.id} />
-                  <label class="ui-label" for={`note-${note.id}`}>
-                    written {note.created_at} UTC
-                  </label>
-                  <textarea
+                  <NoteEditor
                     id={`note-${note.id}`}
-                    name="body"
+                    initial={note.body}
                     rows={Math.min(
-                      20,
+                      14,
                       Math.max(4, note.body.split("\n").length + 1),
                     )}
-                    class="ui-textarea"
+                    saveLabel="Save"
+                    meta={formatTimestamp(note.updated_at)}
                   >
-                    {note.body}
-                  </textarea>
-                  <div class="flex flex-wrap items-center gap-3">
-                    <button type="submit" class="ui-btn ui-btn-primary">
-                      save
-                    </button>
-                    <span class="ui-hint">
-                      last saved {note.updated_at} UTC
-                    </span>
-                  </div>
+                    <ConfirmButton
+                      label="Delete"
+                      confirmLabel="Delete"
+                      form={`note-delete-${note.id}`}
+                    />
+                  </NoteEditor>
                 </form>
-
-                <form method="post">
+                <form id={`note-delete-${note.id}`} method="post" hidden>
                   <input type="hidden" name="intent" value="delete" />
                   <input type="hidden" name="id" value={note.id} />
-                  <ConfirmButton
-                    label="delete note"
-                    confirmLabel="yes, delete it"
-                  />
                 </form>
-              </section>
+              </article>
             ))}
           </div>
         )}

@@ -11,6 +11,8 @@ export interface Subject {
   stage: Stage;
   sessionId: number | null;
   sessionDate: string | null;
+  /** Running order within the session, 1-based; null while unscheduled. */
+  position: number | null;
   slidesUrl: string | null;
   recordingUrl: string | null;
   recapNotes: string | null;
@@ -25,7 +27,6 @@ export interface Subject {
 export interface SubjectFilter {
   text?: string;
   stage?: Stage;
-  personId?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,6 +136,22 @@ export function idleDays(
   return Math.floor((Date.now() - changedAtMs) / 86_400_000);
 }
 
+/** Days without moving on, per stage, before a subject counts as idle. */
+const IDLE_AFTER: Partial<Record<Stage, number>> = {
+  idea: 14,
+  speaker: 30,
+};
+
+/** The idle days to show on a sticker, or null while the subject is moving fine. */
+export function idleSticker(
+  subject: Pick<Subject, "stage" | "stageChangedAt" | "createdAt">,
+): number | null {
+  const limit = IDLE_AFTER[subject.stage];
+  if (limit === undefined) return null;
+  const days = idleDays(subject);
+  return days >= limit ? days : null;
+}
+
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
@@ -147,6 +164,7 @@ async function hydrate(
     description: string | null;
     session_id: number | null;
     session_date: string | null;
+    position: number | null;
     slides_url: string | null;
     recording_url: string | null;
     recap_notes: string | null;
@@ -195,6 +213,7 @@ async function hydrate(
         stage: deriveStage(people.length > 0, r.session_date),
         sessionId: r.session_id,
         sessionDate: r.session_date,
+        position: r.position,
         slidesUrl: r.slides_url,
         recordingUrl: r.recording_url,
         recapNotes: r.recap_notes,
@@ -222,6 +241,7 @@ function baseQuery() {
       "subjects.description",
       "subjects.session_id",
       "sessions.date as session_date",
+      "subjects.position",
       "subjects.slides_url",
       "subjects.recording_url",
       "subjects.recap_notes",
@@ -241,17 +261,6 @@ export async function listSubjects(
 ): Promise<Subject[]> {
   let q = baseQuery();
 
-  if (filter.personId !== undefined) {
-    q = q.where(
-      "subjects.id",
-      "in",
-      db.selectFrom("subject_people").select("subject_id").where(
-        "person_id",
-        "=",
-        filter.personId,
-      ),
-    );
-  }
   if (filter.text?.trim()) {
     const t = `%${filter.text.trim()}%`;
     q = q.where((eb) =>
@@ -308,6 +317,7 @@ export async function createSubject(
     .values({
       title: title.trim(),
       session_id: sessionId ?? null,
+      position: sessionId ? await nextPosition(db, sessionId) : null,
     })
     .returning("id")
     .executeTakeFirstOrThrow();
@@ -350,6 +360,18 @@ export async function setSubjectTitle(
     .execute();
 }
 
+/** Set or clear just the recording link, as pasted after the session. */
+export async function setSubjectRecording(
+  id: number,
+  url: string,
+): Promise<void> {
+  await db
+    .updateTable("subjects")
+    .set({ recording_url: blank(url), updated_at: sql`current_timestamp` })
+    .where("id", "=", id)
+    .execute();
+}
+
 /** Replace the speaker set from typed names, creating the people that are new. */
 export async function setSubjectPeople(
   id: number,
@@ -383,20 +405,94 @@ export async function setSubjectPeople(
   );
 }
 
-/** Pass null to unschedule; the stage falls back to speaker or idea. */
+/**
+ * Pass null to unschedule; the stage falls back to speaker or idea. A subject
+ * that joins a session goes to the end of its running order.
+ */
 export async function setSubjectSession(
   id: number,
   sessionId: number | null,
 ): Promise<void> {
   await db.transaction().execute((trx) =>
-    withStageTracking(trx, id, async () => {
-      await trx
-        .updateTable("subjects")
-        .set({ session_id: sessionId })
-        .where("id", "=", id)
-        .execute();
-    })
+    withStageTracking(trx, id, () => placeOnSession(trx, id, sessionId))
   );
+}
+
+/** Puts a subject last on `sessionId`; staying on the same one keeps its place. */
+async function placeOnSession(
+  trx: Kysely<Database>,
+  id: number,
+  sessionId: number | null,
+): Promise<void> {
+  const current = await trx.selectFrom("subjects").select("session_id")
+    .where("id", "=", id).executeTakeFirst();
+  if (current?.session_id === sessionId) return;
+  await trx
+    .updateTable("subjects")
+    .set({
+      session_id: sessionId,
+      position: sessionId ? await nextPosition(trx, sessionId) : null,
+    })
+    .where("id", "=", id)
+    .execute();
+}
+
+/** The position after the last subject on a session. */
+async function nextPosition(
+  q: Kysely<Database>,
+  sessionId: number,
+): Promise<number> {
+  const row = await q.selectFrom("subjects")
+    .select((eb) => eb.fn.max("position").as("last"))
+    .where("session_id", "=", sessionId)
+    .executeTakeFirst();
+  return Number(row?.last ?? 0) + 1;
+}
+
+/** Orders a session's subjects by running order; unordered ones go last. */
+export function byPosition(a: Subject, b: Subject): number {
+  const rank = (s: Subject) => s.position ?? Infinity;
+  return rank(a) - rank(b) || a.id - b.id;
+}
+
+/**
+ * Swaps a subject with its neighbour in its session's running order
+ * (-1 = earlier, 1 = later), then renumbers the session 1..n so gaps and
+ * duplicates from older data heal themselves. At either end it does nothing.
+ */
+export async function moveSubject(id: number, step: -1 | 1): Promise<void> {
+  await db.transaction().execute(async (trx) => {
+    const subject = await trx.selectFrom("subjects").select("session_id")
+      .where("id", "=", id).executeTakeFirst();
+    if (!subject?.session_id) return;
+
+    const ids = await runningOrder(trx, subject.session_id);
+    const from = ids.indexOf(id);
+    const to = from + step;
+    if (to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    await renumber(trx, ids);
+  });
+}
+
+/** A session's subject ids in running order; unordered ones last. */
+async function runningOrder(
+  trx: Kysely<Database>,
+  sessionId: number,
+): Promise<number[]> {
+  const rows = await trx.selectFrom("subjects").select("id")
+    .where("session_id", "=", sessionId)
+    .orderBy(sql`position is null`).orderBy("position").orderBy("id")
+    .execute();
+  return rows.map((row) => row.id);
+}
+
+/** Stores `ids` as positions 1..n. */
+async function renumber(trx: Kysely<Database>, ids: number[]): Promise<void> {
+  for (const [index, subjectId] of ids.entries()) {
+    await trx.updateTable("subjects").set({ position: index + 1 })
+      .where("id", "=", subjectId).execute();
+  }
 }
 
 export async function replaceSubjectLinks(

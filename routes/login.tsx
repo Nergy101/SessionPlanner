@@ -29,57 +29,66 @@ export const handler = define.handlers({
 });
 
 export default define.page<typeof handler>(function Login({ data, url }) {
+  const returnTo = safeReturnTo(url.searchParams.get("returnTo") ?? "");
+
   return (
-    <div class="grid min-h-screen place-items-center p-4">
-      <div class="relative w-full max-w-[400px]">
-        {/* The orange sticker: a careful, private space. */}
-        <span class="absolute -top-3 right-4 z-10 rotate-3 border-2 border-line bg-careful px-2 py-0.5 font-bold text-[0.7rem] tracking-widest text-[#111]">
-          PRIVATE
-        </span>
+    <div class="login-page">
+      <header class="login-top">
+        <a href="/" class="sp-logo" aria-label="session planner – dashboard">
+          <span class="sp-mark" style="--s:26px" aria-hidden="true">
+            <span class="sp-sq"></span>
+            <span class="sp-ci"></span>
+          </span>
+          <span class="sp-word">session planner</span>
+        </a>
+        <a href="/" class="font-display text-sm font-bold">
+          ← Public dashboard
+        </a>
+      </header>
 
-        <div class="ui-panel shadow-[6px_6px_0_var(--color-line)] p-7">
-          <p class="ui-eyebrow">session planner</p>
-          <h1 class="mb-6 mt-1 text-3xl tracking-tight">Password, please</h1>
+      <main class="login-card relative">
+        <span class="sticker sticker-corner">PRIVATE</span>
+        <h1>Password, please</h1>
+        <p class="mt-2 text-muted">
+          Everything except the dashboard is behind one shared password. You'll
+          go back to <span class="font-mono text-text">{returnTo}</span>{" "}
+          afterwards.
+        </p>
 
-          {data.failed && (
-            <div
-              role="alert"
-              class="mb-4 border-2 border-dashed border-careful bg-surface-2 px-3 py-2 text-sm font-bold text-danger-text"
-            >
-              That password isn't right.
-            </div>
-          )}
+        {data.failed && (
+          <p role="alert" class="ui-alert mt-4">
+            That password isn't right.
+          </p>
+        )}
 
-          <form method="post" class="flex flex-col gap-4" data-busy>
-            <input
-              type="hidden"
-              name="returnTo"
-              value={url.searchParams.get("returnTo") ?? "/"}
-            />
-            <div>
-              <label class="ui-label" for="password">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autofocus
-                autocomplete="current-password"
-                class="ui-input min-h-12 text-base"
-              />
-            </div>
-            <button type="submit" class="ui-btn ui-btn-primary w-full">
-              Sign in ⏎
-            </button>
-            <span class="sp-busy" role="status">
-              <span class="sp-mark" style="--s:18px" aria-hidden="true">
-                <span class="sp-sq"></span>
-                <span class="sp-ci"></span>
-              </span>
-              Signing in…
+        <form
+          method="post"
+          class="mt-5 flex flex-col gap-3"
+          data-busy
+          data-require="password"
+        >
+          <input type="hidden" name="returnTo" value={returnTo} />
+          <label class="ui-label" for="password">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autofocus
+            autocomplete="current-password"
+            class="ui-input min-h-12 text-base"
+          />
+          <button type="submit" class="ui-btn ui-btn-primary min-h-12 w-full">
+            Sign in ⏎
+          </button>
+          <span class="sp-busy" role="status">
+            <span class="sp-mark" style="--s:18px" aria-hidden="true">
+              <span class="sp-sq"></span>
+              <span class="sp-ci"></span>
             </span>
-          </form>
-        </div>
-      </div>
+            Signing in…
+          </span>
+        </form>
+      </main>
     </div>
   );
 });

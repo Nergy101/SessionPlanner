@@ -12,6 +12,8 @@ export function ConfirmButton(props: {
   label: string;
   confirmLabel?: string;
   class?: string;
+  /** Submits this form instead of the enclosing one (the HTML `form` attribute). */
+  form?: string;
 }) {
   const armed = useSignal(false);
 
@@ -29,7 +31,11 @@ export function ConfirmButton(props: {
 
   return (
     <div class="flex flex-wrap items-center gap-2">
-      <button type="submit" class="ui-btn ui-btn-danger-solid">
+      <button
+        type="submit"
+        form={props.form}
+        class="ui-btn ui-btn-danger-solid"
+      >
         {props.confirmLabel ?? "yes, delete"}
       </button>
       <button
