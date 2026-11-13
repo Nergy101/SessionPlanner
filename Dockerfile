@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM denoland/deno:2.9.6 AS build
+FROM denoland/deno:2.9.8 AS build
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY vite.config.ts ./
 RUN deno install --entrypoint deno.json
 RUN deno task build
 
-FROM denoland/deno:2.9.6
+FROM denoland/deno:2.9.8
 
 WORKDIR /app
 
