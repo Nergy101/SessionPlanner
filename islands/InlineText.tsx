@@ -89,6 +89,7 @@ export function InlineText(props: {
       <input
         ref={input}
         type={props.type ?? "text"}
+        list={undefined}
         name={props.name}
         min={props.min}
         step={props.step}
