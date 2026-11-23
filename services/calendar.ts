@@ -12,12 +12,17 @@ export function sessionHeading(session: Session): string {
   ].filter(Boolean).join(" · ");
 }
 
-/** The running order as plain text, for pasting into chat or e-mail. */
-export function agendaText(session: Session): string {
-  const items = session.subjects.map((s, i) => {
+/** The running order as "1. Title — Speakers" lines. */
+function agendaItems(session: Session): string[] {
+  return session.subjects.map((s, i) => {
     const speakers = s.people.map((p) => p.name).join(" & ");
     return `${i + 1}. ${s.title} — ${speakers || "speaker to be confirmed"}`;
   });
+}
+
+/** The running order as plain text, for pasting into chat or e-mail. */
+export function agendaText(session: Session): string {
+  const items = agendaItems(session);
   return [
     sessionHeading(session),
     "",
@@ -26,14 +31,36 @@ export function agendaText(session: Session): string {
   ].join("\n");
 }
 
-/** A calendar file holding the session as its one event. */
-export function sessionIcs(session: Session, pageUrl: string): string {
+/**
+ * The running order without the organiser's session notes, for the public
+ * upcoming page and its .ics (NER-332): everything ahead is shareable, the
+ * notes are not.
+ */
+export function publicAgendaText(session: Session): string {
+  const items = agendaItems(session);
+  return [
+    sessionHeading(session),
+    "",
+    ...(items.length ? items : ["Nothing planned yet."]),
+  ].join("\n");
+}
+
+/**
+ * A calendar file holding the session as its one event. `agenda` overrides
+ * the DESCRIPTION — the public .ics passes publicAgendaText(session) so the
+ * organiser's notes stay out.
+ */
+export function sessionIcs(
+  session: Session,
+  pageUrl: string,
+  agenda?: string,
+): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//session-planner//EN",
     "CALSCALE:GREGORIAN",
-    ...sessionEvent(session, pageUrl),
+    ...sessionEvent(session, pageUrl, agenda),
     "END:VCALENDAR",
   ];
   return lines.map(fold).join("\r\n") + "\r\n";
@@ -43,14 +70,18 @@ export function sessionIcs(session: Session, pageUrl: string): string {
  * With a start time the event lasts EVENT_MINUTES; without one it is an
  * all-day event on the date.
  */
-function sessionEvent(session: Session, pageUrl: string): string[] {
+function sessionEvent(
+  session: Session,
+  pageUrl: string,
+  agenda?: string,
+): string[] {
   return [
     "BEGIN:VEVENT",
     `UID:session-${session.id}@session-planner`,
     `DTSTAMP:${icsUtc(new Date())}`,
     ...eventTimes(session),
     `SUMMARY:${icsText(sessionHeading(session))}`,
-    `DESCRIPTION:${icsText(agendaText(session))}`,
+    `DESCRIPTION:${icsText(agenda === undefined ? agendaText(session) : agenda)}`,
     `URL:${pageUrl}`,
     "END:VEVENT",
   ];

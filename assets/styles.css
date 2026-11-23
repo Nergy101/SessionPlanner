@@ -2119,3 +2119,97 @@
 html.straat:not(.straat-ready) body {
   visibility: hidden;
 }
+
+/* ---------------------------------------------------------------------------
+   The optional public upcoming page (NER-332): bare layout, no app chrome,
+   so it needs its own shell. Dark and light come free via the --color tokens.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .upcoming-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding: 16px;
+  }
+
+  .upcoming-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .upcoming-main {
+    display: flex;
+    flex-direction: column;
+    width: min(720px, 100%);
+    margin: 40px auto 60px;
+  }
+
+  .up-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .up-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .up-subjects {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .up-subject {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .up-order {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: var(--color-line);
+    color: var(--color-muted);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .up-speakers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .up-speaker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+  }
+
+  .up-foot {
+    margin-top: auto;
+    padding-top: 32px;
+    color: var(--color-muted);
+    font-size: 14px;
+    text-align: center;
+  }
+}

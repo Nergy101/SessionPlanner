@@ -15,6 +15,11 @@ app.use(staticFiles());
  * speaker yet (claimSubject only fills empty slots), and sign in or out. Every
  * planning view and every change to existing plans belongs to the signed-in
  * organiser.
+ *
+ * The optional public upcoming page (NER-332) is a separate check: GET/HEAD on
+ * /upcoming and its .ics are public *if* PUBLIC_PAGE is on, and the routes
+ * themselves 404 otherwise, so the gate opens nothing that page doesn't
+ * control.
  */
 const PUBLIC_METHODS = new Map<string, readonly string[]>([
   ["/", ["GET", "HEAD"]],
@@ -24,7 +29,14 @@ const PUBLIC_METHODS = new Map<string, readonly string[]>([
   ["/logout", ["GET", "HEAD", "POST"]],
 ]);
 
+/** The shareable upcoming page and its calendar files, when enabled. */
+const isUpcomingPath = (path: string) =>
+  path === "/upcoming" || path.startsWith("/upcoming/");
+
 function isPublic(path: string, method: string): boolean {
+  if (isUpcomingPath(path) && (method === "GET" || method === "HEAD")) {
+    return true; // the routes themselves check PUBLIC_PAGE
+  }
   return PUBLIC_METHODS.get(path)?.includes(method) ?? false;
 }
 

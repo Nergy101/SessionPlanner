@@ -3,6 +3,7 @@ import type { State } from "@/utils.ts";
 import { asset } from "fresh/runtime";
 import ThemeToggle from "@/islands/ThemeToggle.tsx";
 import StraatToggle from "@/islands/StraatToggle.tsx";
+import { publicPageMode } from "@/services/public_page.ts";
 
 /** Only the dashboard is public; the rest show once signed in. */
 const NAV = [
@@ -20,8 +21,15 @@ export default function App(
   const signedIn = state?.signedIn === true;
   const visibleNav = NAV.filter((item) => signedIn || item.public);
 
-  // The login page carries its own layout and gets no app chrome.
-  const bare = url.pathname === "/login";
+  // The login page and the public upcoming page carry their own layout and
+  // get no app chrome.
+  const bare = url.pathname === "/login" || url.pathname === "/upcoming" ||
+    url.pathname.startsWith("/upcoming/");
+
+  // PUBLIC_PAGE=noindex publishes /upcoming but keeps it out of search
+  // engines; every other page is only reachable behind the password anyway.
+  const noindex = url.pathname.startsWith("/upcoming") &&
+    publicPageMode() === "noindex";
 
   const active = (href: string) =>
     href === "/" ? url.pathname === "/" : url.pathname.startsWith(href);
@@ -75,6 +83,7 @@ export default function App(
         />
         <title>session-planner</title>
         <meta name="theme-color" content="#fff8e7" />
+        {noindex && <meta name="robots" content="noindex, nofollow" />}
         <link rel="icon" href={asset("/favicon.svg")} type="image/svg+xml" />
         <link
           rel="icon"
