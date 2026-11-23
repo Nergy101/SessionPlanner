@@ -173,6 +173,23 @@ every existing session.
 - `/notes` is a private scratch page. Like every page except the public
   dashboard, it redirects to `/login` without the cookie.
 
+## Public upcoming page
+
+`/upcoming` is an optional, read-only page for people without the password
+(NER-332). It shows only sessions that are still ahead — date, start time and
+the running order with speakers — and nothing internal: no organiser notes,
+recap notes, checks, slides or recording links. Each session gets an "Add to
+calendar" link that serves an `.ics` of the public running order.
+
+It is off by default and answers 404 until `PUBLIC_PAGE` is set in `.env`:
+
+- `PUBLIC_PAGE=on` — the page is public; share the URL freely.
+- `PUBLIC_PAGE=noindex` — the page is public but carries a `robots` noindex
+  meta tag, so search engines skip it.
+
+The dashboard is already public by design; `/upcoming` extends that to future
+plans only — everything else stays behind the password.
+
 ## Data and backups
 
 Everything is one SQLite file, `data/session-planner.db` (override with
@@ -207,6 +224,10 @@ them, and that foreign keys are actually enforced.
 
 `tests/fixtures.ts` holds the demo data, used by `deno task demo` and available
 to tests.
+
+`tests/upcoming_test.ts` covers the optional public page: the `PUBLIC_PAGE`
+modes, the stripped view model, and that the organiser's notes never reach the
+rendered page or the public `.ics`.
 
 ## Layout
 
