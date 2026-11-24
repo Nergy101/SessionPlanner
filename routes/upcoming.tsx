@@ -38,8 +38,8 @@ export default define.page<typeof handler>(function Upcoming({ data }) {
       <main class="upcoming-main">
         <h1>Upcoming sessions</h1>
         <p class="page-sub">
-          Everything still ahead, in running order. You don't need the
-          password to read this page.
+          Everything still ahead, in running order. You don't need the password
+          to read this page.
         </p>
 
         {data.sessions.length === 0

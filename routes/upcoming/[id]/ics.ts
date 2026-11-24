@@ -34,7 +34,7 @@ export async function upcomingSessionIcs(
 
 /** The session as a calendar file, linking back to the public page. */
 export const handler = define.handlers({
-  async GET(ctx) {
+  GET(ctx) {
     return upcomingSessionIcs(
       ctx.params.id,
       new URL("/upcoming", ctx.url).href,

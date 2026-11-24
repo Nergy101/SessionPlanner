@@ -39,7 +39,8 @@
     "@types/babel__core": "npm:@types/babel__core@^7.20.5",
     "tailwindcss": "npm:tailwindcss@^4.3.5",
     "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.3.5",
-    "@kysely/kysely/migration": "jsr:@kysely/kysely@^0.29.9/migration"
+    "@kysely/kysely/migration": "jsr:@kysely/kysely@^0.29.9/migration",
+    "preact-render-to-string": "npm:preact-render-to-string@^6.3.1"
   },
   "compilerOptions": {
     "lib": [

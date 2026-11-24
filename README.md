@@ -184,8 +184,8 @@ calendar" link that serves an `.ics` of the public running order.
 It is off by default and answers 404 until `PUBLIC_PAGE` is set in `.env`:
 
 - `PUBLIC_PAGE=on` — the page is public; share the URL freely.
-- `PUBLIC_PAGE=noindex` — the page is public but carries a `robots` noindex
-  meta tag, so search engines skip it.
+- `PUBLIC_PAGE=noindex` — the page is public but carries a `robots` noindex meta
+  tag, so search engines skip it.
 
 The dashboard is already public by design; `/upcoming` extends that to future
 plans only — everything else stays behind the password.

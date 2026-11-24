@@ -44,19 +44,19 @@
     "npm:@babel/core@^7.28.0": "7.29.13",
     "npm:@babel/preset-react@^7.27.1": "7.29.7_@babel+core@7.29.13",
     "npm:@opentelemetry/api@^1.9.0": "1.10.0",
-    "npm:@preact/signals@^2.11.4": "2.11.4_preact@11.2.0__preact-render-to-string@6.8.3_preact-render-to-string@6.8.3__preact@11.2.0",
-    "npm:@preact/signals@^2.5.1": "2.11.4_preact@11.2.0__preact-render-to-string@6.8.3_preact-render-to-string@6.8.3__preact@11.2.0",
-    "npm:@prefresh/vite@^2.4.8": "2.4.12_preact@11.2.0__preact-render-to-string@6.8.3_vite@8.3.8__@types+node@26.6.6__esbuild@0.25.12_@types+node@26.6.6_esbuild@0.25.12",
+    "npm:@preact/signals@^2.11.4": "2.11.4_preact@11.2.0_preact-render-to-string@6.8.3",
+    "npm:@preact/signals@^2.5.1": "2.11.4_preact@11.2.0_preact-render-to-string@6.8.3",
+    "npm:@prefresh/vite@^2.4.8": "2.4.12_preact@11.2.0_vite@8.3.8_@types+node@26.6.6_esbuild@0.25.12",
     "npm:@remix-run/node-fetch-server@0.12": "0.12.0",
-    "npm:@tailwindcss/vite@^4.3.5": "4.3.5_vite@8.3.8__@types+node@26.6.6__esbuild@0.25.12_@types+node@26.6.6_esbuild@0.25.12",
+    "npm:@tailwindcss/vite@^4.3.5": "4.3.5_vite@8.3.8_@types+node@26.6.6_esbuild@0.25.12",
     "npm:@types/babel__core@^7.20.5": "7.20.5",
     "npm:@types/node@^26.6.6": "26.6.6",
     "npm:esbuild-wasm@~0.25.11": "0.25.12",
     "npm:esbuild@0.25.7": "0.25.7",
     "npm:esbuild@~0.25.5": "0.25.12",
     "npm:preact-render-to-string@^6.6.3": "6.8.3_preact@11.2.0",
-    "npm:preact@^10.28.2": "10.29.8_preact-render-to-string@6.8.3__preact@11.2.0",
-    "npm:preact@^10.29.1": "10.29.8_preact-render-to-string@6.8.3__preact@11.2.0",
+    "npm:preact@^10.28.2": "10.29.8_preact-render-to-string@6.8.3",
+    "npm:preact@^10.29.1": "10.29.8_preact-render-to-string@6.8.3",
     "npm:preact@^11.2.0": "11.2.0_preact-render-to-string@6.8.3",
     "npm:rollup@^4.55.1": "4.63.1",
     "npm:tailwindcss@^4.3.5": "4.3.5",
@@ -852,7 +852,7 @@
     "@preact/signals-core@1.14.5": {
       "integrity": "sha512-vcRv7Ityz5JVmeiVqIluLFzT/PDS/AlhHUpw3/aUWqcVUs6bDGIPXE/6RSC4evBNWYvnniozg5Syfj33al3gkg=="
     },
-    "@preact/signals@2.11.4_preact@11.2.0__preact-render-to-string@6.8.3_preact-render-to-string@6.8.3__preact@11.2.0": {
+    "@preact/signals@2.11.4_preact@11.2.0_preact-render-to-string@6.8.3": {
       "integrity": "sha512-Rb+5RPo9gWSaHtzJeauhHxiC8KP/IF2DEPkHPEOGOnuy2wnJzRqyeLRankUCYd6ADqtxS6GnWGv6Ie343d8aYw==",
       "dependencies": [
         "@preact/signals-core",
@@ -865,7 +865,7 @@
         "@babel/core"
       ]
     },
-    "@prefresh/core@1.5.11_preact@11.2.0__preact-render-to-string@6.8.3_preact-render-to-string@6.8.3__preact@11.2.0": {
+    "@prefresh/core@1.5.11_preact@11.2.0_preact-render-to-string@6.8.3": {
       "integrity": "sha512-Ml00PP8jeHaADxfQqxUs4+M5JS+T5J26UnvPVfsrmlpGw2I3e9XtM0DMeuzkmvg+Tn7VdHSMpLBrDPG0iHoDqQ==",
       "dependencies": [
         "preact@11.2.0_preact-render-to-string@6.8.3"
@@ -874,7 +874,7 @@
     "@prefresh/utils@1.2.1": {
       "integrity": "sha512-vq/sIuN5nYfYzvyayXI4C2QkprfNaHUQ9ZX+3xLD8nL3rWyzpxOm1+K7RtMbhd+66QcaISViK7amjnheQ/4WZw=="
     },
-    "@prefresh/vite@2.4.12_preact@11.2.0__preact-render-to-string@6.8.3_vite@8.3.8__@types+node@26.6.6__esbuild@0.25.12_@types+node@26.6.6_esbuild@0.25.12": {
+    "@prefresh/vite@2.4.12_preact@11.2.0_vite@8.3.8_@types+node@26.6.6_esbuild@0.25.12": {
       "integrity": "sha512-FY1fzXpUjiuosznMV0YM7XAOPZjB5FIdWS0W24+XnlxYkt9hNAwwsiKYn+cuTEoMtD/ZVazS5QVssBr9YhpCQA==",
       "dependencies": [
         "@babel/core",
@@ -1195,7 +1195,7 @@
         "@tailwindcss/oxide-win32-x64-msvc"
       ]
     },
-    "@tailwindcss/vite@4.3.5_vite@8.3.8__@types+node@26.6.6__esbuild@0.25.12_@types+node@26.6.6_esbuild@0.25.12": {
+    "@tailwindcss/vite@4.3.5_vite@8.3.8_@types+node@26.6.6_esbuild@0.25.12": {
       "integrity": "sha512-BCNiY0a1ZjdOHVqw7kyb7U72BwfMF3dfUuN+tQsLWky/J5JOI/r7abibglXfygrZhVO/3u3V+E25kkKTeMkXaQ==",
       "dependencies": [
         "@tailwindcss/node",
@@ -1551,7 +1551,7 @@
         "preact@11.2.0_preact-render-to-string@6.8.3"
       ]
     },
-    "preact@10.29.8_preact-render-to-string@6.8.3__preact@11.2.0": {
+    "preact@10.29.8_preact-render-to-string@6.8.3": {
       "integrity": "sha512-ej2aVZ+vZ8WO7tvlQWRM9N63A0KzF9q4mWJfDUHgYaIofWY9hu74QdnQrjoPMmZi2/nZ5gN0bJCQF49xQqx09Q==",
       "dependencies": [
         "preact-render-to-string"
@@ -1721,6 +1721,7 @@
       "npm:@tailwindcss/vite@^4.3.5",
       "npm:@types/babel__core@^7.20.5",
       "npm:@types/node@^26.6.6",
+      "npm:preact-render-to-string@^6.3.1",
       "npm:preact@^11.2.0",
       "npm:tailwindcss@^4.3.5",
       "npm:vite@^8.3.8"

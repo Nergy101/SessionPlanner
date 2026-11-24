@@ -81,7 +81,9 @@ function sessionEvent(
     `DTSTAMP:${icsUtc(new Date())}`,
     ...eventTimes(session),
     `SUMMARY:${icsText(sessionHeading(session))}`,
-    `DESCRIPTION:${icsText(agenda === undefined ? agendaText(session) : agenda)}`,
+    `DESCRIPTION:${
+      icsText(agenda === undefined ? agendaText(session) : agenda)
+    }`,
     `URL:${pageUrl}`,
     "END:VEVENT",
   ];

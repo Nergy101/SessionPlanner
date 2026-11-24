@@ -5,6 +5,7 @@ import {
   assertStringIncludes,
 } from "@std/assert";
 import { HttpError } from "fresh";
+import { render } from "preact-render-to-string";
 import type { PublicSession } from "@/services/public_page.ts";
 
 /**
@@ -74,34 +75,27 @@ function setEnv(name: string, value?: string) {
   else Deno.env.set(name, value);
 }
 
-/** Every string a preact vnode tree will render: text and attribute values. */
-function strings(node: unknown, out: string[] = []): string[] {
-  if (node == null || typeof node === "boolean") return out;
-  if (typeof node === "string" || typeof node === "number") {
-    out.push(String(node));
-    return out;
-  }
-  if (Array.isArray(node)) {
-    for (const child of node) strings(child, out);
-    return out;
-  }
-  if (typeof node === "object" && "props" in (node as Record<string, unknown>)) {
-    const props = (node as { props?: Record<string, unknown> }).props ?? {};
-    for (const [key, value] of Object.entries(props)) {
-      if (key === "children") strings(value, out);
-      else if (typeof value === "string") out.push(value);
-    }
-    return out;
-  }
-  return out;
-}
-
-/** The page component, called the way Fresh would call it. */
-function renderUpcoming(sessionsInView: PublicSession[]): string[] {
+/** The page rendered to HTML, the way Fresh would serve it. */
+function renderUpcoming(sessionsInView: PublicSession[]): string {
   const Page = upcoming.default as unknown as (
     props: { data: { sessions: PublicSession[] } },
   ) => unknown;
-  return strings(Page({ data: { sessions: sessionsInView } }));
+  return render(Page({ data: { sessions: sessionsInView } }) as never);
+}
+
+/**
+ * Unfold RFC 5545 folded lines and undo TEXT escaping, so assertions can
+ * match the original values (e.g. a comma is escaped to "\\," in the .ics).
+ */
+function icsPlain(ics: string): string {
+  return unfold(ics)
+    .replace(/\\n/g, "\n")
+    .replace(/\\([,;\\])/g, "$1");
+}
+
+/** Unfold RFC 5545 folded content lines so assertions see whole values. */
+function unfold(ics: string): string {
+  return ics.replace(/\r\n[ \t]/g, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -160,7 +154,10 @@ Deno.test("the view model keeps the shareable fields and drops the rest", async 
   assertEquals(session.subjects.length, 1);
   assertEquals(session.subjects[0]!.title, TITLE);
   assertEquals(session.subjects[0]!.description, DESCRIPTION);
-  assertEquals(session.subjects[0]!.speakers, [{ id: 1, name: "Jan de Vries" }]);
+  assertEquals(session.subjects[0]!.speakers, [{
+    id: 1,
+    name: "Jan de Vries",
+  }]);
 
   const json = JSON.stringify(view);
   for (const absent of [NOTES, RECAP, SLIDES, RECORDING]) {
@@ -197,7 +194,7 @@ Deno.test("the page shows the running order and none of the canaries", async () 
   const view = publicPage.publicSessions(
     await sessions.getUpcomingSessions(),
   );
-  const text = renderUpcoming(view).join("\n");
+  const text = renderUpcoming(view);
 
   for (const absent of [NOTES, RECAP, SLIDES, RECORDING]) {
     assert(!text.includes(absent), `should not leak ${absent}`);
@@ -212,7 +209,7 @@ Deno.test("the page shows the running order and none of the canaries", async () 
 
 Deno.test("the page has an empty state when nothing is ahead", async () => {
   await reset();
-  const text = renderUpcoming([]).join("\n");
+  const text = renderUpcoming([]);
   assertStringIncludes(text, "No sessions announced yet.");
 });
 
@@ -237,11 +234,14 @@ Deno.test("the public agenda keeps the order and drops organiser notes", async (
 
   // The .ics takes the override, so the notes stay out there too.
   const ics = calendar.sessionIcs(session, "http://x/upcoming", agenda);
-  assert(!ics.includes(NOTES));
-  assertStringIncludes(ics, TITLE);
+  assert(!icsPlain(ics).includes(NOTES));
+  assertStringIncludes(icsPlain(ics), TITLE);
 
   // Without the override the private behaviour is unchanged.
-  assertStringIncludes(calendar.sessionIcs(session, "http://x/"), NOTES);
+  assertStringIncludes(
+    icsPlain(calendar.sessionIcs(session, "http://x/")),
+    NOTES,
+  );
 });
 
 Deno.test("the ics route serves only when on, and only what's ahead", async () => {
@@ -266,9 +266,9 @@ Deno.test("the ics route serves only when on, and only what's ahead", async () =
     `attachment; filename="session-${sid}-${FUTURE}.ics"`,
   );
   const body = await res.text();
-  assert(!body.includes(NOTES));
-  assert(!body.includes(RECAP));
-  assertStringIncludes(body, TITLE);
+  assert(!icsPlain(body).includes(NOTES));
+  assert(!icsPlain(body).includes(RECAP));
+  assertStringIncludes(icsPlain(body), TITLE);
 
   // On, but the session is gone, in the past, or not a number.
   await assertRejects(() => get("NaN"), HttpError);
